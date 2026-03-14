@@ -1,4 +1,7 @@
-python-telegram-bot==20.3
+python-telegram-bot[job-queue]==20.3 --no-deps
+httpx==0.24.1
+anyio==3.7.1
+certifi
 requests
 numpy
 apscheduler
