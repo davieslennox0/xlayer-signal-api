@@ -1,8 +1,7 @@
 python-telegram-bot==20.7
-web3
-eth-account
+web3==6.15.1
+eth-account==0.10.0
 requests
 numpy
 apscheduler
 python-dotenv
-aiosqlite
