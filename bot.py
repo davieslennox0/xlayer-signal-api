@@ -566,8 +566,7 @@ def main():
 
     app = Application.builder().token(TG_TOKEN).build()
 
-    # Onboarding conversation
-conv = ConversationHandler(
+    conv = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
             ASK_EMAIL: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_email)],
@@ -576,10 +575,41 @@ conv = ConversationHandler(
         fallbacks=[CommandHandler("start", start)]
     )
 
-bypass_conv = ConversationHandler(
+    bypass_conv = ConversationHandler(
         entry_points=[CommandHandler("bypass", bypass_start)],
         states={
             ASK_BYPASS: [MessageHandler(filters.TEXT & ~filters.COMMAND, check_bypass)],
         },
         fallbacks=[CommandHandler("bypass", bypass_start)]
     )
+
+    app.add_handler(conv)
+    app.add_handler(bypass_conv)
+    app.add_handler(CommandHandler("balance",  balance))
+    app.add_handler(CommandHandler("deposit",  deposit))
+    app.add_handler(CommandHandler("verify",   verify_deposit))
+    app.add_handler(CommandHandler("withdraw", withdraw))
+    app.add_handler(CommandHandler("stats",    stats))
+    app.add_handler(CommandHandler("signal",   signal))
+    app.add_handler(CommandHandler("admin",    admin))
+    app.add_handler(CommandHandler("help",     help_cmd))
+
+
+    async def post_init(app):
+        scheduler = AsyncIOScheduler(timezone="UTC")
+        scheduler.add_job(
+            lambda: asyncio.ensure_future(auto_trade(app)),
+            'interval', hours=1
+        )
+        scheduler.add_job(
+            lambda: asyncio.ensure_future(daily_report(app)),
+            'cron', hour=23, minute=0
+        )
+        scheduler.start()
+        logger.info("Bot started...")
+
+    app.post_init = post_init
+    app.run_polling(drop_pending_updates=True)
+
+if __name__ == '__main__':
+    main()
