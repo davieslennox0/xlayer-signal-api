@@ -567,10 +567,19 @@ def main():
     app = Application.builder().token(TG_TOKEN).build()
 
     # Onboarding conversation
-    conv = ConversationHandler(
+conv = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
             ASK_EMAIL: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_email)],
             ASK_TX:    [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_tx)],
         },
-        fallbacks=[CommandHandler("start", 
+        fallbacks=[CommandHandler("start", start)]
+    )
+
+bypass_conv = ConversationHandler(
+        entry_points=[CommandHandler("bypass", bypass_start)],
+        states={
+            ASK_BYPASS: [MessageHandler(filters.TEXT & ~filters.COMMAND, check_bypass)],
+        },
+        fallbacks=[CommandHandler("bypass", bypass_start)]
+    )
