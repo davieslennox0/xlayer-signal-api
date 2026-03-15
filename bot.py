@@ -64,24 +64,31 @@ async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             f"👋 Welcome back *{name}*!\n\n"
             f"Your bot is active and trading automatically.\n\n"
-            f"Use /help to see all commands.",
-            parse_mode="Markdown"
+            f"Use the menu below to navigate.",
+            parse_mode="Markdown",
+            reply_markup=main_menu_keyboard(user["is_owner"] == 1)
         )
         return ConversationHandler.END
 
     await update.message.reply_text(
         f"👋 Welcome *{name}*!\n\n"
-        f"*BTC Prediction Bot* auto-trades BTC UP/DOWN markets on Myriad when AI confidence is above 70%.\n\n"
-        f"To get started:\n"
-        f"  1️⃣ Enter your Myriad email\n"
-        f"  2️⃣ Deposit $5 USD1 to your wallet\n"
-        f"  3️⃣ Bot starts trading for you\n\n"
+        f"🤖 *AI-Powered BTC Trading Bot*\n\n"
+        f"This bot uses AI to analyze BTC markets and automatically places UP/DOWN bets on Myriad Markets when confidence exceeds 80%.\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"*To get started you need:*\n\n"
+        f"1️⃣ *$5 USD1* — one-time access fee → sent to owner wallet\n"
+        f"2️⃣ *$5+ USD1* — trading capital → sent to your bot wallet\n"
+        f"3️⃣ *~0.002 BNB* — gas fee → sent to your bot wallet\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"✅ AI trades automatically 24/7\n"
+        f"✅ Auto-claims winnings to your wallet\n"
+        f"✅ Daily P&L reports\n"
+        f"✅ $0.10 platform fee per trade\n\n"
         f"Have a bypass code? Type /bypass\n\n"
         f"Enter your *Myriad email* to begin:",
         parse_mode="Markdown"
     )
     return ASK_EMAIL
-
 
 async def ask_email(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     uid   = str(update.effective_user.id)
@@ -236,15 +243,17 @@ async def balance(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Account not active. Use /start to register.")
         return
 
-    # Refresh on-chain balance
-    onchain = wm.get_usdc_balance(user["wallet_address"])
-
+    onchain   = wm.get_usd1_balance(user["wallet_address"])
+    positions = trader.get_claimable_positions(user["wallet_address"])
+    port_val  = sum(p.get("value", 0) for p in positions) if positions else 0
+    open_pos  = len(positions) if positions else 0
     await update.message.reply_text(
         f"💰 *Your Wallet*\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"Address  : `{user['wallet_address']}`\n"
-        f"Balance  : *${user['balance']:.2f} USD1* (bot tracking)\n"
-        f"On-chain : *${onchain:.2f} USD1*\n"
+        f"Address    : `{user['wallet_address']}`\n"
+        f"Bot Balance: *${user['balance']:.2f} USD1*\n"
+        f"On-chain   : *${onchain:.2f} USD1*\n"
+        f"In Myriad  : *${port_val:.2f} USD1* ({open_pos} positions)\n"
         f"━━━━━━━━━━━━━━━━━━━━",
         parse_mode="Markdown"
     )
@@ -407,14 +416,14 @@ async def help_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"  /stats — your P&L and trade history\n"
         f"{owner_section}"
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"_Auto-trading fires when AI confidence > 70%_",
+        f"_Auto-trading fires when AI confidence > 80%_",
         parse_mode="Markdown"
     )
 
 
 # ── Auto-trader (scheduler) ───────────────────────────────────────────────────
 async def auto_trade(app: Application):
-    """Run every hour — trade if confidence > 70%."""
+    """Run every hour — trade if confidence > 80%."""
     logger.info("Running auto-trade scan...")
 
     try:
@@ -715,14 +724,18 @@ async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             await query.message.reply_text(f"⚠️ Signal error: {e}")
 
     elif data == "balance":
-        user = db.get_user(uid)
-        onchain = wm.get_usd1_balance(user["wallet_address"])
+        user      = db.get_user(uid)
+        onchain   = wm.get_usd1_balance(user["wallet_address"])
+        positions = trader.get_claimable_positions(user["wallet_address"])
+        port_val  = sum(p.get("value", 0) for p in positions) if positions else 0
+        open_pos  = len(positions) if positions else 0
         await query.message.reply_text(
             f"💰 *Your Wallet*\n"
             f"━━━━━━━━━━━━━━━━━━━━\n"
-            f"Address  : `{user['wallet_address']}`\n"
-            f"Balance  : *${user['balance']:.2f} USD1* (bot)\n"
-            f"On-chain : *${onchain:.2f} USD1*\n"
+            f"Address    : `{user['wallet_address']}`\n"
+            f"Bot Balance: *${user['balance']:.2f} USD1*\n"
+            f"On-chain   : *${onchain:.2f} USD1*\n"
+            f"In Myriad  : *${port_val:.2f} USD1* ({open_pos} positions)\n"
             f"━━━━━━━━━━━━━━━━━━━━",
             parse_mode="Markdown",
             reply_markup=main_menu_keyboard(is_owner(uid))
