@@ -9,10 +9,10 @@ import logging
 from datetime import datetime
 from dotenv import load_dotenv
 
-from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
+from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import (
     Application, CommandHandler, MessageHandler,
-    ConversationHandler, ContextTypes, filters
+    ConversationHandler, ContextTypes, filters, CallbackQueryHandler
 )
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
@@ -73,7 +73,7 @@ async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"*BTC Prediction Bot* auto-trades BTC UP/DOWN markets on Myriad when AI confidence is above 70%.\n\n"
         f"To get started:\n"
         f"  1️⃣ Enter your Myriad email\n"
-        f"  2️⃣ Deposit $5 USDC to your wallet\n"
+        f"  2️⃣ Deposit $5 USD1 to your wallet\n"
         f"  3️⃣ Bot starts trading for you\n\n"
         f"Have a bypass code? Type /bypass\n\n"
         f"Enter your *Myriad email* to begin:",
@@ -102,20 +102,28 @@ async def ask_email(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ That email is already registered. Use a different one:")
         return ASK_EMAIL
 
-    # Generate wallet for this user
+    # Generate wallet — store encrypted key
     wallet = wm.generate_wallet()
     db.update_user(uid,
         email          = email,
         wallet_address = wallet["address"],
-        wallet_key     = wallet["private_key"]
+        wallet_key     = wallet["encrypted_key"]
     )
 
     await update.message.reply_text(
         f"✅ *Email saved!*\n\n"
-        f"🔐 *Your trading wallet has been created:*\n"
-        f"`{wallet['address']}`\n\n"
-        f"📤 Send exactly *$5.00 USDC* to this address on *Abstract chain*.\n\n"
-        f"Once sent, paste the *transaction hash* here to activate your account.",
+        f"🔐 *Your Trading Wallet*\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"Address : `{wallet['address']}`\n"
+        f"Network : Binance Smart Chain (BSC)\n\n"
+        f"⚠️ *SAVE YOUR PRIVATE KEY NOW:*\n"
+        f"`{wallet['private_key']}`\n\n"
+        f"• Import to MetaMask to access funds directly\n"
+        f"• Never share with anyone\n"
+        f"• Use /mykey anytime to retrieve it\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"📤 Now send *$5.00 USD1* to your address on BSC\n"
+        f"Once sent, paste the *transaction hash* here.",
         parse_mode="Markdown"
     )
     return ASK_TX
@@ -140,7 +148,7 @@ async def ask_tx(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text("⏳ Verifying transaction on-chain...")
 
-    result = wm.verify_tx_payment(tx_hash, OWNER_EVM, MIN_DEPOSIT)
+    result = wm.verify_tx_payment(tx_hash, user["wallet_address"], MIN_DEPOSIT)
 
     if not result["valid"]:
         await update.message.reply_text(
@@ -156,7 +164,7 @@ async def ask_tx(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         f"🎉 *Account Activated!*\n\n"
-        f"💰 Balance: *${result['amount']:.2f} USDC*\n\n"
+        f"💰 Balance: *${result['amount']:.2f} USD1*\n\n"
         f"Your bot is now live. It will automatically trade BTC UP/DOWN when AI confidence exceeds 70%.\n\n"
         f"Use /help to see all commands.",
         parse_mode="Markdown"
@@ -234,8 +242,8 @@ async def balance(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"💰 *Your Wallet*\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"Address  : `{user['wallet_address']}`\n"
-        f"Balance  : *${user['balance']:.2f} USDC* (bot tracking)\n"
-        f"On-chain : *${onchain:.2f} USDC*\n"
+        f"Balance  : *${user['balance']:.2f} USD1* (bot tracking)\n"
+        f"On-chain : *${onchain:.2f} USD1*\n"
         f"━━━━━━━━━━━━━━━━━━━━",
         parse_mode="Markdown"
     )
@@ -253,9 +261,9 @@ async def deposit(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"📥 *Top Up Your Balance*\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"Send *USDC* on *Abstract chain* to:\n\n"
+        f"Send *USD1* on *Binance Smart Chain (BSC)* to:\n\n"
         f"`{user['wallet_address']}`\n\n"
-        f"Minimum: $5 USDC\n"
+        f"Minimum: $5 USD1\n"
         f"After sending, use /verify <tx\\_hash> to credit your balance.",
         parse_mode="Markdown"
     )
@@ -281,7 +289,7 @@ async def verify_deposit(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
 
     await update.message.reply_text("⏳ Verifying...")
-    result = wm.verify_tx_payment(tx_hash, OWNER_EVM, 1.0)
+    result = wm.verify_tx_payment(tx_hash, user["wallet_address"], 1.0)
 
     if not result["valid"]:
         await update.message.reply_text(f"❌ {result['error']}")
@@ -291,8 +299,8 @@ async def verify_deposit(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     db.add_balance(uid, result["amount"])
 
     await update.message.reply_text(
-        f"✅ *${result['amount']:.2f} USDC credited!*\n"
-        f"New balance: *${db.get_user(uid)['balance']:.2f} USDC*",
+        f"✅ *${result['amount']:.2f} USD1 credited!*\n"
+        f"New balance: *${db.get_user(uid)['balance']:.2f} USD1*",
         parse_mode="Markdown"
     )
 
@@ -331,7 +339,7 @@ async def stats(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"Volume       : ${s['total_volume'] or 0:.2f}\n"
         f"Fees Paid    : ${s['total_fees'] or 0:.2f}\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"Balance      : *${user['balance']:.2f} USDC*",
+        f"Balance      : *${user['balance']:.2f} USD1*",
         parse_mode="Markdown"
     )
 
@@ -552,7 +560,7 @@ async def daily_report(app: Application):
                     f"P&L          : {pnl_emoji} ${today['pnl'] or 0:.2f}\n"
                     f"Fees paid    : ${today['fees'] or 0:.2f}\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"Balance      : *${user['balance']:.2f} USDC*"
+                    f"Balance      : *${user['balance']:.2f} USD1*"
                 ),
                 parse_mode="Markdown"
             )
@@ -561,10 +569,227 @@ async def daily_report(app: Application):
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
+async def mykey(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    uid  = str(update.effective_user.id)
+    user = db.get_user(uid)
+    if not user or not user["wallet_key"]:
+        await update.message.reply_text("❌ No wallet found. Use /start to register.")
+        return
+    try:
+        private_key = wm.decrypt_key(user["wallet_key"])
+        await update.message.reply_text(
+            f"🔐 *Your Private Key*\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"`{private_key}`\n\n"
+            f"⚠️ Never share this with anyone.",
+            parse_mode="Markdown"
+        )
+    except Exception as e:
+        await update.message.reply_text(f"❌ Could not retrieve key: {e}")
+
+
+async def myaddress(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    uid  = str(update.effective_user.id)
+    user = db.get_user(uid)
+    if not user or not user["wallet_address"]:
+        await update.message.reply_text("❌ No wallet found. Use /start to register.")
+        return
+    await update.message.reply_text(
+        f"💳 *Your Wallet Address*\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"`{user['wallet_address']}`\n\n"
+        f"Network: Binance Smart Chain (BSC)",
+        parse_mode="Markdown"
+    )
+
+
+def main_menu_keyboard(is_owner=False):
+    buttons = [
+        [
+            InlineKeyboardButton("📊 Signal",    callback_data="signal"),
+            InlineKeyboardButton("💰 Balance",   callback_data="balance"),
+        ],
+        [
+            InlineKeyboardButton("📥 Deposit",   callback_data="deposit"),
+            InlineKeyboardButton("📂 Stats",     callback_data="stats"),
+        ],
+        [
+            InlineKeyboardButton("🔑 My Key",    callback_data="mykey"),
+            InlineKeyboardButton("💳 Address",   callback_data="myaddress"),
+        ],
+        [
+            InlineKeyboardButton("📤 Withdraw",  callback_data="withdraw"),
+            InlineKeyboardButton("❓ Help",      callback_data="help"),
+        ],
+    ]
+    if is_owner:
+        buttons.append([InlineKeyboardButton("🛠 Admin Dashboard", callback_data="admin")])
+    return InlineKeyboardMarkup(buttons)
+
+
+async def menu(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    uid    = str(update.effective_user.id)
+    user   = db.get_user(uid)
+    owner  = user and user["is_owner"] == 1
+    active = user and user["is_active"] == 1
+
+    if not active:
+        await update.message.reply_text(
+            "❌ Account not active. Use /start to register."
+        )
+        return
+
+    await update.message.reply_text(
+        "🤖 *BTC Prediction Bot*\nChoose an option:",
+        parse_mode="Markdown",
+        reply_markup=main_menu_keyboard(owner)
+    )
+
+
+async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    uid  = str(query.from_user.id)
+    data = query.data
+
+    # Re-use existing handler functions
+    if data == "signal":
+        await query.message.reply_text("⏳ Analyzing BTC...")
+        try:
+            sig = se.generate_signal()
+            await query.message.reply_text(
+                se.format_signal(sig),
+                parse_mode="Markdown",
+                reply_markup=main_menu_keyboard(is_owner(uid))
+            )
+        except Exception as e:
+            await query.message.reply_text(f"⚠️ Signal error: {e}")
+
+    elif data == "balance":
+        user = db.get_user(uid)
+        onchain = wm.get_usd1_balance(user["wallet_address"])
+        await query.message.reply_text(
+            f"💰 *Your Wallet*\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"Address  : `{user['wallet_address']}`\n"
+            f"Balance  : *${user['balance']:.2f} USD1* (bot)\n"
+            f"On-chain : *${onchain:.2f} USD1*\n"
+            f"━━━━━━━━━━━━━━━━━━━━",
+            parse_mode="Markdown",
+            reply_markup=main_menu_keyboard(is_owner(uid))
+        )
+
+    elif data == "deposit":
+        user = db.get_user(uid)
+        await query.message.reply_text(
+            f"📥 *Top Up Your Balance*\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"Send *USD1* on *BSC* to:\n\n"
+            f"`{user['wallet_address']}`\n\n"
+            f"Minimum: $5 USD1\n"
+            f"After sending use /verify <tx\\_hash>",
+            parse_mode="Markdown",
+            reply_markup=main_menu_keyboard(is_owner(uid))
+        )
+
+    elif data == "stats":
+        user  = db.get_user(uid)
+        s     = db.get_user_stats(user["id"])
+        wr    = round(s["wins"] / s["total_trades"] * 100, 1) if s["total_trades"] else 0
+        await query.message.reply_text(
+            f"📊 *Your Trading Stats*\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"Total Trades : {s['total_trades']}\n"
+            f"Wins         : {s['wins']} ✅\n"
+            f"Losses       : {s['losses']} ❌\n"
+            f"Win Rate     : {wr}%\n"
+            f"Total P&L    : ${s['total_pnl'] or 0:.2f}\n"
+            f"Volume       : ${s['total_volume'] or 0:.2f}\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"Balance      : *${user['balance']:.2f} USD1*",
+            parse_mode="Markdown",
+            reply_markup=main_menu_keyboard(is_owner(uid))
+        )
+
+    elif data == "mykey":
+        user = db.get_user(uid)
+        try:
+            private_key = wm.decrypt_key(user["wallet_key"])
+            await query.message.reply_text(
+                f"🔐 *Your Private Key*\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"`{private_key}`\n\n"
+                f"⚠️ Never share this with anyone.",
+                parse_mode="Markdown"
+            )
+        except Exception as e:
+            await query.message.reply_text(f"❌ Could not retrieve key: {e}")
+
+    elif data == "myaddress":
+        user = db.get_user(uid)
+        await query.message.reply_text(
+            f"💳 *Your Wallet Address*\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"`{user['wallet_address']}`\n\n"
+            f"Network: Binance Smart Chain (BSC)",
+            parse_mode="Markdown",
+            reply_markup=main_menu_keyboard(is_owner(uid))
+        )
+
+    elif data == "withdraw":
+        await query.message.reply_text(
+            "💸 *Withdrawals*\n\n"
+            "To withdraw your funds visit:\n"
+            "👉 https://myriad.markets\n\n"
+            "Connect your trading wallet and withdraw directly.",
+            parse_mode="Markdown",
+            reply_markup=main_menu_keyboard(is_owner(uid))
+        )
+
+    elif data == "admin":
+        if not is_owner(uid):
+            await query.message.reply_text("❌ Admin only.")
+            return
+        s = db.get_admin_stats()
+        await query.message.reply_text(
+            f"🛠 *Admin Dashboard*\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"👥 Total Users   : {s['total_users']}\n"
+            f"✅ Active Users  : {s['active_users']}\n"
+            f"📈 Total Trades  : {s['total_trades']}\n"
+            f"📊 Total Volume  : ${s['total_volume']:.2f}\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"💵 Today Trades  : {s['today_trades']}\n"
+            f"💵 Today Volume  : ${s['today_volume']:.2f}\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"💰 Total Fees    : ${s['total_fees']:.4f}\n"
+            f"━━━━━━━━━━━━━━━━━━━━",
+            parse_mode="Markdown",
+            reply_markup=main_menu_keyboard(True)
+        )
+
+    elif data == "help":
+        await query.message.reply_text(
+            f"🤖 *BTC Prediction Bot*\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"Auto-trades BTC UP/DOWN on Myriad Markets\n"
+            f"when AI confidence exceeds 80%.\n\n"
+            f"*Commands*\n"
+            f"  /start — register\n"
+            f"  /bypass — owner bypass\n"
+            f"  /verify <tx> — credit deposit\n"
+            f"  /menu — show this menu\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"_Auto-trading fires when confidence > 80%_",
+            parse_mode="Markdown",
+            reply_markup=main_menu_keyboard(is_owner(uid))
+        )
+
 def main():
     db.init_db()
 
-    app = Application.builder().token(TG_TOKEN).build()
+    app = Application.builder().token(TG_TOKEN).connect_timeout(30).read_timeout(30).write_timeout(30).pool_timeout(30).build()
 
     conv = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
@@ -572,7 +797,7 @@ def main():
             ASK_EMAIL: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_email)],
             ASK_TX:    [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_tx)],
         },
-        fallbacks=[CommandHandler("start", start)]
+        fallbacks=[CommandHandler("start", start), CommandHandler("bypass", bypass_start)]
     )
 
     bypass_conv = ConversationHandler(
@@ -593,6 +818,10 @@ def main():
     app.add_handler(CommandHandler("signal",   signal))
     app.add_handler(CommandHandler("admin",    admin))
     app.add_handler(CommandHandler("help",     help_cmd))
+    app.add_handler(CommandHandler("mykey",     mykey))
+    app.add_handler(CommandHandler("myaddress", myaddress))
+    app.add_handler(CommandHandler("menu", menu))
+    app.add_handler(CallbackQueryHandler(button_handler))
 
 
     async def post_init(app):
@@ -613,3 +842,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+

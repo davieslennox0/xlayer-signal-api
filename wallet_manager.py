@@ -1,26 +1,44 @@
+from dotenv import load_dotenv
+load_dotenv()
 """
-wallet_manager.py — BSC/USD1 wallet management (pure Python, no C deps)
+wallet_manager.py — BSC/USD1 wallet management with encryption
 """
 
 import secrets
 import hashlib
 import requests
+import os
+from cryptography.fernet import Fernet
 
-BSC_RPC      = "https://bsc-dataseed.binance.org/"
+BSC_RPC      = "https://bsc-rpc.publicnode.com"
 USD1_ADDRESS = "0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d"
+MASTER_KEY   = os.getenv("MASTER_KEY")
+
+
+def get_cipher():
+    return Fernet(MASTER_KEY.encode() if isinstance(MASTER_KEY, str) else MASTER_KEY)
+
+
+def encrypt_key(private_key: str) -> str:
+    return get_cipher().encrypt(private_key.encode()).decode()
+
+
+def decrypt_key(encrypted_key: str) -> str:
+    return get_cipher().decrypt(encrypted_key.encode()).decode()
 
 
 def generate_wallet() -> dict:
-    """Generate a BSC-compatible wallet address using pure Python."""
     private_key = secrets.token_hex(32)
-    # Derive deterministic address from private key hash (simplified)
     addr_hash   = hashlib.sha256(bytes.fromhex(private_key)).hexdigest()
     address     = "0x" + addr_hash[-40:]
-    return {"address": address, "private_key": private_key}
+    return {
+        "address":       address,
+        "private_key":   private_key,
+        "encrypted_key": encrypt_key(private_key)
+    }
 
 
 def get_usd1_balance(address: str) -> float:
-    """Get USD1 balance on BSC."""
     try:
         payload = {
             "jsonrpc": "2.0", "method": "eth_call",
@@ -39,7 +57,6 @@ def get_usd1_balance(address: str) -> float:
 
 
 def verify_tx_payment(tx_hash: str, expected_to: str, min_amount_usd: float = 5.0) -> dict:
-    """Verify USD1 payment on BSC."""
     try:
         payload = {
             "jsonrpc": "2.0", "method": "eth_getTransactionByHash",
@@ -63,8 +80,7 @@ def verify_tx_payment(tx_hash: str, expected_to: str, min_amount_usd: float = 5.
         amount_usd = round(amount_raw / 10**18, 4)
 
         if recipient.lower() != expected_to.lower():
-            return {"valid": False, "amount": amount_usd,
-                    "error": "Sent to wrong address"}
+            return {"valid": False, "amount": amount_usd, "error": "Sent to wrong address"}
 
         if amount_usd < min_amount_usd:
             return {"valid": False, "amount": amount_usd,

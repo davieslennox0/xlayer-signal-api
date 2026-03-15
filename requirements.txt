@@ -3,3 +3,4 @@ requests
 numpy
 apscheduler
 python-dotenv
+cryptography

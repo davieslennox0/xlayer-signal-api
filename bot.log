@@ -1,0 +1,41 @@
+nohup: ignoring input
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8707222996:AAEaz1jmk065NAazFwi8HazLu_5_oErDXkc/getMe "HTTP/1.1 200 OK"
+INFO:apscheduler.scheduler:Adding job tentatively -- it will be properly scheduled when the scheduler starts
+INFO:apscheduler.scheduler:Adding job tentatively -- it will be properly scheduled when the scheduler starts
+INFO:apscheduler.scheduler:Added job "main.<locals>.post_init.<locals>.<lambda>" to job store "default"
+INFO:apscheduler.scheduler:Added job "main.<locals>.post_init.<locals>.<lambda>" to job store "default"
+INFO:apscheduler.scheduler:Scheduler started
+INFO:__main__:Bot started...
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8707222996:AAEaz1jmk065NAazFwi8HazLu_5_oErDXkc/deleteWebhook "HTTP/1.1 200 OK"
+INFO:apscheduler.scheduler:Scheduler started
+INFO:telegram.ext.Application:Application started
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8707222996:AAEaz1jmk065NAazFwi8HazLu_5_oErDXkc/getUpdates "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8707222996:AAEaz1jmk065NAazFwi8HazLu_5_oErDXkc/getUpdates "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8707222996:AAEaz1jmk065NAazFwi8HazLu_5_oErDXkc/getUpdates "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8707222996:AAEaz1jmk065NAazFwi8HazLu_5_oErDXkc/sendMessage "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8707222996:AAEaz1jmk065NAazFwi8HazLu_5_oErDXkc/getUpdates "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8707222996:AAEaz1jmk065NAazFwi8HazLu_5_oErDXkc/getUpdates "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8707222996:AAEaz1jmk065NAazFwi8HazLu_5_oErDXkc/getUpdates "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8707222996:AAEaz1jmk065NAazFwi8HazLu_5_oErDXkc/answerCallbackQuery "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8707222996:AAEaz1jmk065NAazFwi8HazLu_5_oErDXkc/sendMessage "HTTP/1.1 200 OK"
+Price source failed: https://api.binance.com/api/v3/klines — HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=BTCUSDT&interval=1d&limit=60 (Caused by NameResolutionError("HTTPSConnection(host='api.binance.com', port=443): Failed to resolve 'api.binance.com' ([Errno 7] No address associated with hostname)"))
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8707222996:AAEaz1jmk065NAazFwi8HazLu_5_oErDXkc/getUpdates "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8707222996:AAEaz1jmk065NAazFwi8HazLu_5_oErDXkc/sendMessage "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8707222996:AAEaz1jmk065NAazFwi8HazLu_5_oErDXkc/getUpdates "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8707222996:AAEaz1jmk065NAazFwi8HazLu_5_oErDXkc/answerCallbackQuery "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8707222996:AAEaz1jmk065NAazFwi8HazLu_5_oErDXkc/sendMessage "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8707222996:AAEaz1jmk065NAazFwi8HazLu_5_oErDXkc/getUpdates "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8707222996:AAEaz1jmk065NAazFwi8HazLu_5_oErDXkc/getUpdates "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8707222996:AAEaz1jmk065NAazFwi8HazLu_5_oErDXkc/answerCallbackQuery "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8707222996:AAEaz1jmk065NAazFwi8HazLu_5_oErDXkc/sendMessage "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8707222996:AAEaz1jmk065NAazFwi8HazLu_5_oErDXkc/getUpdates "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8707222996:AAEaz1jmk065NAazFwi8HazLu_5_oErDXkc/answerCallbackQuery "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8707222996:AAEaz1jmk065NAazFwi8HazLu_5_oErDXkc/sendMessage "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8707222996:AAEaz1jmk065NAazFwi8HazLu_5_oErDXkc/getUpdates "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8707222996:AAEaz1jmk065NAazFwi8HazLu_5_oErDXkc/answerCallbackQuery "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8707222996:AAEaz1jmk065NAazFwi8HazLu_5_oErDXkc/sendMessage "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8707222996:AAEaz1jmk065NAazFwi8HazLu_5_oErDXkc/getUpdates "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8707222996:AAEaz1jmk065NAazFwi8HazLu_5_oErDXkc/getUpdates "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8707222996:AAEaz1jmk065NAazFwi8HazLu_5_oErDXkc/getUpdates "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8707222996:AAEaz1jmk065NAazFwi8HazLu_5_oErDXkc/getUpdates "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8707222996:AAEaz1jmk065NAazFwi8HazLu_5_oErDXkc/getUpdates "HTTP/1.1 200 OK"

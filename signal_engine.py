@@ -7,14 +7,29 @@ import numpy as np
 
 
 def get_btc_prices(days=60):
-    """Fetch BTC daily closing prices from Kraken."""
-    url = "https://api.kraken.com/0/public/OHLC"
-    resp = requests.get(url, params={"pair": "XBTUSD", "interval": 1440}, timeout=10)
-    resp.raise_for_status()
-    data = resp.json()
-    pair_key = list(data["result"].keys())[0]
-    candles = data["result"][pair_key]
-    return [float(c[4]) for c in candles[-days:]]
+    """Fetch BTC daily closing prices — tries multiple sources."""
+    sources = [
+        ("https://api.binance.com/api/v3/klines",
+         {"symbol": "BTCUSDT", "interval": "1d", "limit": days},
+         lambda r: [float(c[4]) for c in r.json()]),
+        ("https://api.coingecko.com/api/v3/coins/bitcoin/market_chart",
+         {"vs_currency": "usd", "days": days, "interval": "daily"},
+         lambda r: [p[1] for p in r.json()["prices"]]),
+        ("https://min-api.cryptocompare.com/data/v2/histoday",
+         {"fsym": "BTC", "tsym": "USD", "limit": days},
+         lambda r: [d["close"] for d in r.json()["Data"]["Data"]]),
+    ]
+    for url, params, parser in sources:
+        try:
+            resp = requests.get(url, params=params, timeout=10)
+            resp.raise_for_status()
+            prices = parser(resp)
+            if prices:
+                return prices
+        except Exception as e:
+            print(f"Price source failed: {url} — {e}")
+            continue
+    raise Exception("All price sources failed")
 
 
 def calc_rsi(prices, period=14):
@@ -51,11 +66,9 @@ def generate_signal() -> dict:
     ma20    = calc_ma(prices, 20)
     bb_low, bb_mid, bb_high = calc_bollinger(prices)
 
-    # Score range: -5 to +5
     score   = 0
     reasons = []
 
-    # RSI (weight: 2)
     if rsi < 30:
         score += 2; reasons.append(f"RSI {rsi} → Oversold 🟢")
     elif rsi > 70:
@@ -63,19 +76,16 @@ def generate_signal() -> dict:
     else:
         reasons.append(f"RSI {rsi} → Neutral ⚪")
 
-    # MACD (weight: 1)
     if macd > 0:
         score += 1; reasons.append(f"MACD {macd} → Bullish 🟢")
     else:
         score -= 1; reasons.append(f"MACD {macd} → Bearish 🔴")
 
-    # MA20 (weight: 1)
     if current > ma20:
         score += 1; reasons.append(f"Above MA20 (${ma20:,}) 🟢")
     else:
         score -= 1; reasons.append(f"Below MA20 (${ma20:,}) 🔴")
 
-    # Bollinger (weight: 1)
     if current < bb_low:
         score += 1; reasons.append(f"Below BB lower (${bb_low:,}) → Bounce 🟢")
     elif current > bb_high:
@@ -83,39 +93,28 @@ def generate_signal() -> dict:
     else:
         reasons.append(f"Inside BB bands (mid ${bb_mid:,}) ⚪")
 
-    # Map score (-5 to +5) → confidence (0% to 100%)
     confidence = round((score + 5) / 10 * 100, 1)
 
     if score >= 3:
-        direction = "up"
-        label     = "🟢 BET UP"
+        direction, label = "up",   "🟢 BET UP"
     elif score <= -3:
-        direction = "down"
-        label     = "🔴 BET DOWN"
+        direction, label = "down", "🔴 BET DOWN"
     else:
-        direction = None
-        label     = "⚪ HOLD"
+        direction, label = None,   "⚪ HOLD"
 
     return {
-        "price":      current,
-        "rsi":        rsi,
-        "macd":       macd,
-        "ma20":       ma20,
-        "bb_low":     bb_low,
-        "bb_high":    bb_high,
-        "score":      score,
-        "confidence": confidence,
-        "direction":  direction,
-        "label":      label,
-        "reasons":    reasons,
-        "tradeable":  confidence >= 70 and direction is not None,
+        "price": current, "rsi": rsi, "macd": macd,
+        "ma20": ma20, "bb_low": bb_low, "bb_high": bb_high,
+        "score": score, "confidence": confidence,
+        "direction": direction, "label": label,
+        "reasons": reasons,
+        "tradeable": confidence >= 80 and direction is not None,
     }
 
 
 def format_signal(sig: dict) -> str:
     bar_filled = int(sig["confidence"] / 10)
     bar = "█" * bar_filled + "░" * (10 - bar_filled)
-
     lines = [
         "📊 *BTC AI Signal*",
         "━━━━━━━━━━━━━━━━━━━━━━",
@@ -129,7 +128,7 @@ def format_signal(sig: dict) -> str:
         lines.append(f"  • {r}")
     lines += [
         "─────────────────────",
-        f"{'✅ Auto-trade will fire!' if sig['tradeable'] else '⏸ Below 70% threshold — waiting'}",
+        f"{'✅ Auto-trade will fire!' if sig['tradeable'] else '⏸ Below 80% threshold — waiting'}",
         "━━━━━━━━━━━━━━━━━━━━━━",
     ]
     return "\n".join(lines)
