@@ -1,4 +1,7 @@
 nohup: ignoring input
+Starting bot...
+/data/data/com.termux/files/home/myriad/bot.py:1046: PTBUserWarning: If 'per_message=False', 'CallbackQueryHandler' will not be tracked for every message. Read this FAQ entry to learn more about the per_* settings: https://github.com/python-telegram-bot/python-telegram-bot/wiki/Frequently-Asked-Questions#what-do-the-per_-settings-in-conversationhandler-do.
+  reg_conv = ConversationHandler(
 INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8770332682:AAF9AGIasga4t-kQnc33fp7NycEdQziSqng/getMe "HTTP/1.1 200 OK"
 INFO:apscheduler.scheduler:Adding job tentatively -- it will be properly scheduled when the scheduler starts
 INFO:apscheduler.scheduler:Adding job tentatively -- it will be properly scheduled when the scheduler starts
@@ -16,17 +19,12 @@ INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8770332682:AAF9AGIasga
 INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8770332682:AAF9AGIasga4t-kQnc33fp7NycEdQziSqng/getUpdates "HTTP/1.1 200 OK"
 INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8770332682:AAF9AGIasga4t-kQnc33fp7NycEdQziSqng/getUpdates "HTTP/1.1 200 OK"
 INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8770332682:AAF9AGIasga4t-kQnc33fp7NycEdQziSqng/getUpdates "HTTP/1.1 200 OK"
-INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8770332682:AAF9AGIasga4t-kQnc33fp7NycEdQziSqng/getUpdates "HTTP/1.1 200 OK"
-INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8770332682:AAF9AGIasga4t-kQnc33fp7NycEdQziSqng/getUpdates "HTTP/1.1 200 OK"
 INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8770332682:AAF9AGIasga4t-kQnc33fp7NycEdQziSqng/sendMessage "HTTP/1.1 200 OK"
 INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8770332682:AAF9AGIasga4t-kQnc33fp7NycEdQziSqng/getUpdates "HTTP/1.1 200 OK"
 INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8770332682:AAF9AGIasga4t-kQnc33fp7NycEdQziSqng/answerCallbackQuery "HTTP/1.1 200 OK"
-INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8770332682:AAF9AGIasga4t-kQnc33fp7NycEdQziSqng/getUpdates "HTTP/1.1 200 OK"
-INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8770332682:AAF9AGIasga4t-kQnc33fp7NycEdQziSqng/sendMessage "HTTP/1.1 200 OK"
-INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8770332682:AAF9AGIasga4t-kQnc33fp7NycEdQziSqng/answerCallbackQuery "HTTP/1.1 200 OK"
 INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8770332682:AAF9AGIasga4t-kQnc33fp7NycEdQziSqng/sendMessage "HTTP/1.1 200 OK"
 INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8770332682:AAF9AGIasga4t-kQnc33fp7NycEdQziSqng/getUpdates "HTTP/1.1 200 OK"
-INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8770332682:AAF9AGIasga4t-kQnc33fp7NycEdQziSqng/getUpdates "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8770332682:AAF9AGIasga4t-kQnc33fp7NycEdQziSqng/sendMessage "HTTP/1.1 200 OK"
 INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8770332682:AAF9AGIasga4t-kQnc33fp7NycEdQziSqng/getUpdates "HTTP/1.1 200 OK"
 INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8770332682:AAF9AGIasga4t-kQnc33fp7NycEdQziSqng/getUpdates "HTTP/1.1 200 OK"
 INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8770332682:AAF9AGIasga4t-kQnc33fp7NycEdQziSqng/getUpdates "HTTP/1.1 200 OK"

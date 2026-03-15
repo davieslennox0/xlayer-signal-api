@@ -4,7 +4,8 @@ database.py — SQLite database for BTC Prediction Telegram Bot
 
 import sqlite3
 import os
-from datetime import datetime
+import random
+import string
 
 DB_PATH = os.getenv("DB_PATH", "bot.db")
 
@@ -13,6 +14,10 @@ def get_conn():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
+
+
+def generate_referral_code(length=6):
+    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))
 
 
 def init_db():
@@ -30,6 +35,9 @@ def init_db():
         balance         REAL DEFAULT 0.0,
         is_active       INTEGER DEFAULT 0,
         is_owner        INTEGER DEFAULT 0,
+        fee_paid        INTEGER DEFAULT 0,
+        referral_code   TEXT UNIQUE,
+        referred_by     TEXT,
         joined_at       TEXT DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -45,7 +53,7 @@ def init_db():
         status          TEXT DEFAULT 'pending',
         result          TEXT,
         pnl             REAL DEFAULT 0,
-        fee_charged     REAL DEFAULT 0.1,
+        fee_charged     REAL DEFAULT 0,
         tx_hash         TEXT,
         placed_at       TEXT DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(user_id) REFERENCES users(id)
@@ -64,7 +72,16 @@ def init_db():
         user_id         INTEGER,
         tx_hash         TEXT UNIQUE,
         amount_usdc     REAL,
+        deposit_type    TEXT DEFAULT 'trading',
         verified        INTEGER DEFAULT 0,
+        created_at      TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS referrals (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        referrer_id     INTEGER,
+        referee_id      INTEGER,
+        reward_paid     INTEGER DEFAULT 0,
         created_at      TEXT DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -90,10 +107,11 @@ def get_user(telegram_id: str):
 
 
 def create_user(telegram_id: str, name: str):
+    code = generate_referral_code()
     conn = get_conn()
     conn.execute(
-        "INSERT OR IGNORE INTO users (telegram_id, telegram_name) VALUES (?, ?)",
-        (str(telegram_id), name)
+        "INSERT OR IGNORE INTO users (telegram_id, telegram_name, referral_code) VALUES (?, ?, ?)",
+        (str(telegram_id), name, code)
     )
     conn.commit()
     conn.close()
@@ -146,13 +164,22 @@ def get_all_active_users():
     return users
 
 
+def get_user_by_referral_code(code: str):
+    conn = get_conn()
+    user = conn.execute(
+        "SELECT * FROM users WHERE referral_code = ?", (code.upper(),)
+    ).fetchone()
+    conn.close()
+    return user
+
+
 # ── Trade helpers ─────────────────────────────────────────────────────────────
 def log_trade(user_id, direction, amount, confidence, market_id, outcome_id, tx_hash):
     conn = get_conn()
     c = conn.execute(
         """INSERT INTO trades
-           (user_id, direction, amount, confidence, market_id, outcome_id, tx_hash, fee_charged)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 0.1)""",
+           (user_id, direction, amount, confidence, market_id, outcome_id, tx_hash)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
         (user_id, direction, amount, confidence, market_id, outcome_id, tx_hash)
     )
     trade_id = c.lastrowid
@@ -205,6 +232,26 @@ def get_total_fees():
     return result["total"] or 0.0
 
 
+# ── Referral helpers ──────────────────────────────────────────────────────────
+def log_referral(referrer_id: int, referee_id: int):
+    conn = get_conn()
+    conn.execute(
+        "INSERT OR IGNORE INTO referrals (referrer_id, referee_id) VALUES (?, ?)",
+        (referrer_id, referee_id)
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_referral_count(user_id: int) -> int:
+    conn = get_conn()
+    count = conn.execute(
+        "SELECT COUNT(*) FROM referrals WHERE referrer_id = ?", (user_id,)
+    ).fetchone()[0]
+    conn.close()
+    return count
+
+
 # ── Admin stats ───────────────────────────────────────────────────────────────
 def get_admin_stats():
     conn = get_conn()
@@ -220,9 +267,31 @@ def get_admin_stats():
         "today_volume":  conn.execute(
             "SELECT COALESCE(SUM(amount),0) FROM trades WHERE DATE(placed_at) = DATE('now')"
         ).fetchone()[0],
+        "total_referrals": conn.execute("SELECT COUNT(*) FROM referrals").fetchone()[0],
     }
     conn.close()
     return stats
+
+
+def get_leaderboard(limit=10):
+    conn = get_conn()
+    rows = conn.execute("""
+        SELECT
+            u.wallet_address,
+            u.telegram_name,
+            COALESCE(SUM(t.amount), 0) as total_volume,
+            COALESCE(SUM(t.pnl), 0) as total_profit,
+            COUNT(t.id) as total_trades,
+            SUM(CASE WHEN t.result = 'win' THEN 1 ELSE 0 END) as wins
+        FROM users u
+        LEFT JOIN trades t ON t.user_id = u.id
+        WHERE u.is_active = 1
+        GROUP BY u.id
+        ORDER BY total_volume DESC
+        LIMIT ?
+    """, (limit,)).fetchall()
+    conn.close()
+    return rows
 
 
 # ── Bypass helpers ────────────────────────────────────────────────────────────
@@ -243,11 +312,11 @@ def log_bypass_use(telegram_id: str):
 
 
 # ── Deposit helpers ───────────────────────────────────────────────────────────
-def log_deposit(user_id: int, tx_hash: str, amount: float):
+def log_deposit(user_id: int, tx_hash: str, amount: float, deposit_type: str = "trading"):
     conn = get_conn()
     conn.execute(
-        "INSERT OR IGNORE INTO deposits (user_id, tx_hash, amount_usdc, verified) VALUES (?, ?, ?, 1)",
-        (user_id, tx_hash, amount)
+        "INSERT OR IGNORE INTO deposits (user_id, tx_hash, amount_usdc, deposit_type, verified) VALUES (?, ?, ?, ?, 1)",
+        (user_id, tx_hash, amount, deposit_type)
     )
     conn.commit()
     conn.close()

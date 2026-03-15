@@ -240,3 +240,10 @@ def claim_winnings(private_key: str, market_id: int, network_id: int, outcome_id
 
     tx_hash = sign_and_send(private_key, MYRIAD_CONTRACT, calldata)
     return {"tx_hash": tx_hash, "market_id": market_id}
+
+def build_transfer_data(to: str, amount: int) -> str:
+    """Build ERC20 transfer() calldata."""
+    TRANSFER_ABI = "0xa9059cbb"
+    to_padded     = to[2:].lower().zfill(64)
+    amount_padded = pad32(amount)
+    return TRANSFER_ABI + to_padded + amount_padded
