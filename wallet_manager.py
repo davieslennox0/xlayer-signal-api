@@ -10,7 +10,7 @@ import requests
 import os
 from cryptography.fernet import Fernet
 
-BSC_RPC      = "https://bsc-rpc.publicnode.com"
+BSC_RPC = "https://rpc.ankr.com/bsc"
 USD1_ADDRESS = "0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d"
 MASTER_KEY   = os.getenv("MASTER_KEY")
 
@@ -28,9 +28,11 @@ def decrypt_key(encrypted_key: str) -> str:
 
 
 def generate_wallet() -> dict:
-    private_key = secrets.token_hex(32)
-    addr_hash   = hashlib.sha256(bytes.fromhex(private_key)).hexdigest()
-    address     = "0x" + addr_hash[-40:]
+    """Generate a proper EVM wallet using eth_account."""
+    from eth_account import Account
+    private_key = "0x" + secrets.token_hex(32)
+    account     = Account.from_key(private_key)
+    address     = account.address
     return {
         "address":       address,
         "private_key":   private_key,

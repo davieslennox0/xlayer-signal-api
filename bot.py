@@ -20,6 +20,7 @@ import database as db
 import signal_engine as se
 import wallet_manager as wm
 import myriad_client as mc
+import trader
 
 load_dotenv()
 
@@ -440,21 +441,6 @@ async def auto_trade(app: Application):
 
     logger.info(f"Signal {sig['confidence']}% → trading {sig['direction'].upper()}")
 
-    # Get market
-    try:
-        market = mc.get_btc_market()
-        if not market:
-            logger.error("No BTC market found")
-            return
-        odds = mc.get_market_odds(market)
-        outcome = odds["outcomes"].get(sig["direction"])
-        if not outcome:
-            logger.error("No matching outcome")
-            return
-    except Exception as e:
-        logger.error(f"Market fetch error: {e}")
-        return
-
     # Trade for each active user
     for user in users:
         uid = user["telegram_id"]
@@ -480,11 +466,12 @@ async def auto_trade(app: Application):
             db.deduct_balance(uid, PLATFORM_FEE)
             db.log_fee(user["id"], PLATFORM_FEE, 0)
 
-            # Place bet
-            result  = mc.place_bet(odds["market_id"], outcome["id"], BET_AMOUNT)
-            tx_hash = result.get("transactionHash", "pending")
-            shares  = round(result.get("shares", 0), 4)
-            payout  = round(shares * 1.0, 2)
+            # Decrypt private key and place real on-chain trade
+            private_key = wm.decrypt_key(user["wallet_key"])
+            result      = trader.place_trade(private_key, sig["direction"], BET_AMOUNT)
+            tx_hash     = result.get("buy_tx", "pending")
+            shares      = result.get("shares", 0)
+            payout      = result.get("payout", 0)
 
             # Deduct bet amount
             db.deduct_balance(uid, BET_AMOUNT)
@@ -524,6 +511,67 @@ async def auto_trade(app: Application):
                 )
             except Exception:
                 pass
+
+
+# ── Auto-claim scheduler ─────────────────────────────────────────────────────
+async def auto_claim(app: Application):
+    """Check and claim winnings for all active users every 10 minutes."""
+    logger.info("Running auto-claim check...")
+    users = db.get_all_active_users()
+
+    for user in users:
+        uid = user["telegram_id"]
+        try:
+            positions = trader.get_claimable_positions(user["wallet_address"])
+            if not positions:
+                continue
+
+            private_key = wm.decrypt_key(user["wallet_key"])
+
+            for pos in positions:
+                try:
+                    result = trader.claim_winnings(
+                        private_key,
+                        pos["marketId"],
+                        pos["networkId"],
+                        pos["outcomeId"]
+                    )
+                    payout  = round(pos.get("value", 0), 2)
+                    profit  = round(pos.get("profit", 0), 2)
+
+                    # Credit winnings to balance
+                    db.add_balance(uid, payout)
+
+                    # Update trade result in DB
+                    conn = db.get_conn()
+                    conn.execute(
+                        "UPDATE trades SET result = 'win', pnl = ? WHERE user_id = ? AND market_id = ? AND status = 'pending'",
+                        (profit, user["id"], pos["marketId"])
+                    )
+                    conn.commit()
+                    conn.close()
+
+                    await app.bot.send_message(
+                        chat_id=uid,
+                        text=(
+                            f"🏆 *Winnings Claimed!*\n"
+                            f"━━━━━━━━━━━━━━━━━━━━\n"
+                            f"Market  : {pos['marketTitle'][:40]}\n"
+                            f"Outcome : {pos['outcomeTitle']} ✅\n"
+                            f"Payout  : *${payout:.2f} USD1*\n"
+                            f"Profit  : *+${profit:.2f}*\n"
+                            f"Tx      : `{result['tx_hash'][:20]}...`\n"
+                            f"━━━━━━━━━━━━━━━━━━━━\n"
+                            f"Balance : ${db.get_user(uid)['balance']:.2f} USD1"
+                        ),
+                        parse_mode="Markdown"
+                    )
+
+                except Exception as e:
+                    logger.error(f"Claim error for {uid}: {e}")
+
+        except Exception as e:
+            logger.error(f"Auto-claim error for {uid}: {e}")
 
 
 # ── Daily P&L report (23:00 UTC) ──────────────────────────────────────────────
@@ -833,6 +881,10 @@ def main():
         scheduler.add_job(
             lambda: asyncio.ensure_future(daily_report(app)),
             'cron', hour=23, minute=0
+        )
+        scheduler.add_job(
+            lambda: asyncio.ensure_future(auto_claim(app)),
+            'interval', minutes=10
         )
         scheduler.start()
         logger.info("Bot started...")
