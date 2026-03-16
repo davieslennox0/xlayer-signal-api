@@ -1,5 +1,5 @@
 """
-signal_engine.py — Short-term BTC signal engine using 5-min candles
+signal_engine.py — Enhanced BTC signal engine using 5-min candles
 """
 
 import requests
@@ -17,6 +17,8 @@ def get_btc_candles(limit=60):
     data = resp.json().get("Data", {}).get("Data", [])
     return data
 
+
+# === Legacy Indicators ===
 
 def calc_rsi(closes, period=14):
     closes = np.array(closes)
@@ -52,28 +54,12 @@ def calc_momentum(closes, period=5):
     return round((closes[-1] - closes[-period]) / closes[-period] * 100, 4)
 
 
-def detect_volume_spike(volumes, period=10):
-    """Detect if current volume is significantly above average."""
-    if len(volumes) < period + 1:
-        return False, 0
-    avg_vol = np.mean(volumes[-period-1:-1])
-    current = volumes[-1]
-    ratio   = current / avg_vol if avg_vol > 0 else 1
-    return ratio > 1.5, round(ratio, 2)
-
-
 def detect_candle_pattern(candles):
-    """
-    Detect basic bullish/bearish candle patterns.
-    Returns: (signal, description)
-    signal: 1=bullish, -1=bearish, 0=neutral
-    """
     if len(candles) < 3:
         return 0, "Neutral ⚪"
 
     c  = candles[-1]
     c1 = candles[-2]
-    c2 = candles[-3]
 
     o, h, l, cl = c["open"], c["high"], c["low"], c["close"]
     body   = abs(cl - o)
@@ -81,28 +67,55 @@ def detect_candle_pattern(candles):
     upper_wick = h - max(o, cl)
     lower_wick = min(o, cl) - l
 
-    # Bullish patterns
     if cl > o and body > candle_range * 0.6:
         return 1, "Strong bullish candle 🟢"
-
     if lower_wick > body * 2 and body < candle_range * 0.3:
         return 1, "Hammer pattern 🟢"
-
     if cl > o and c1["close"] < c1["open"] and cl > c1["open"] and o < c1["close"]:
         return 1, "Bullish engulfing 🟢"
 
-    # Bearish patterns
     if cl < o and body > candle_range * 0.6:
         return -1, "Strong bearish candle 🔴"
-
     if upper_wick > body * 2 and body < candle_range * 0.3:
         return -1, "Shooting star 🔴"
-
     if cl < o and c1["close"] > c1["open"] and cl < c1["open"] and o > c1["close"]:
         return -1, "Bearish engulfing 🔴"
 
     return 0, "Neutral candle ⚪"
 
+
+# === New Fast-Reactive Indicators ===
+
+def detect_volume_spike(volumes, period=20):
+    if len(volumes) < period + 1:
+        return False, 0
+    avg_vol = np.mean(volumes[-period-1:-1])
+    current = volumes[-1]
+    ratio   = current / avg_vol if avg_vol > 0 else 1
+    return ratio > 1.8, round(ratio, 2)
+
+
+def calc_vwap(candles):
+    total_vol_price = sum(c["close"] * c["volumefrom"] for c in candles)
+    total_vol = sum(c["volumefrom"] for c in candles)
+    return total_vol_price / total_vol if total_vol > 0 else candles[-1]["close"]
+
+
+def calc_momentum_size(candle):
+    return (candle["close"] - candle["open"]) / candle["open"] * 100
+
+
+def detect_order_flow(candles):
+    c = candles[-1]
+    if c["close"] > c["open"]:
+        return c["volumefrom"]
+    elif c["close"] < c["open"]:
+        return -c["volumefrom"]
+    else:
+        return 0
+
+
+# === Signal Generation ===
 
 def generate_signal() -> dict:
     candles = get_btc_candles(limit=60)
@@ -113,33 +126,33 @@ def generate_signal() -> dict:
     volumes = [c["volumefrom"] for c in candles]
     current = round(closes[-1], 2)
 
-    # Indicators
     rsi      = calc_rsi(closes)
     macd     = calc_macd(closes)
     ma20     = calc_ma(closes, 20)
     bb_low, bb_mid, bb_high = calc_bollinger(closes)
     momentum = calc_momentum(closes, 5)
-    vol_spike, vol_ratio = detect_volume_spike(volumes)
+    vol_spike, vol_ratio = detect_volume_spike(volumes, period=20)
     candle_sig, candle_desc = detect_candle_pattern(candles)
+    vwap     = calc_vwap(candles)
+    mom_size = calc_momentum_size(candles[-1])
+    order_flow_delta = detect_order_flow(candles)
 
     score   = 0
     reasons = []
 
-    # RSI (weight: 2)
+    # Legacy TA
     if rsi < 35:
-        score += 2; reasons.append(f"RSI {rsi} → Oversold 🟢")
+        score += 1; reasons.append(f"RSI {rsi} → Oversold 🟢")
     elif rsi > 65:
-        score -= 2; reasons.append(f"RSI {rsi} → Overbought 🔴")
+        score -= 1; reasons.append(f"RSI {rsi} → Overbought 🔴")
     else:
         reasons.append(f"RSI {rsi} → Neutral ⚪")
 
-    # MACD (weight: 1)
     if macd > 0:
         score += 1; reasons.append(f"MACD {macd} → Bullish 🟢")
     else:
         score -= 1; reasons.append(f"MACD {macd} → Bearish 🔴")
 
-    # Momentum (weight: 1)
     if momentum > 0.05:
         score += 1; reasons.append(f"Momentum +{momentum}% → Bullish 🟢")
     elif momentum < -0.05:
@@ -147,7 +160,6 @@ def generate_signal() -> dict:
     else:
         reasons.append(f"Momentum {momentum}% → Flat ⚪")
 
-    # Bollinger (weight: 1)
     if current < bb_low:
         score += 1; reasons.append(f"Below BB lower (${bb_low:,}) → Bounce 🟢")
     elif current > bb_high:
@@ -155,7 +167,6 @@ def generate_signal() -> dict:
     else:
         reasons.append(f"Inside BB bands (mid ${bb_mid:,}) ⚪")
 
-    # Candle pattern (weight: 1)
     if candle_sig == 1:
         score += 1; reasons.append(candle_desc)
     elif candle_sig == -1:
@@ -163,20 +174,42 @@ def generate_signal() -> dict:
     else:
         reasons.append(candle_desc)
 
-    # Volume spike (bonus weight: 1 — amplifies direction)
+    # New fast-reacting model
     if vol_spike:
-        if score > 0:
-            score += 1; reasons.append(f"Volume spike {vol_ratio}x → Confirms UP 🟢")
-        elif score < 0:
-            score -= 1; reasons.append(f"Volume spike {vol_ratio}x → Confirms DOWN 🔴")
+        if score >= 0:
+            score += 2; reasons.append(f"Volume spike {vol_ratio}x → Strong UP 🟢")
+        else:
+            score -= 2; reasons.append(f"Volume spike {vol_ratio}x → Strong DOWN 🔴")
 
-    # Map score to confidence
-    max_score  = 7  # max possible with volume bonus
+    if order_flow_delta > 0:
+        score += 2; reasons.append(f"Order flow +{order_flow_delta:.2f} → Bullish 🟢")
+    elif order_flow_delta < 0:
+        score -= 2; reasons.append(f"Order flow {order_flow_delta:.2f} → Bearish 🔴")
+
+    if mom_size > 0.12:
+        score += 2; reasons.append(f"Candle momentum {mom_size:.3f}% → Strong UP 🟢")
+    elif mom_size < -0.12:
+        score -= 2; reasons.append(f"Candle momentum {mom_size:.3f}% → Strong DOWN 🔴")
+
+    if current > vwap:
+        score += 1; reasons.append(f"Above VWAP → Bullish bias 🟢")
+    else:
+        score -= 1; reasons.append(f"Below VWAP → Bearish bias 🔴")
+
+    # Confidence scaling
+    max_score  = 12
     confidence = round((score + max_score) / (max_score * 2) * 100, 1)
 
-    if score >= 3:
+    if score >= 4:
         direction, label = "up",   "🟢 BET UP"
-    elif score <= -3:
+    elif score <= -4:
+   # Confidence scaling
+    max_score  = 12
+    confidence = round((score + max_score) / (max_score * 2) * 100, 1)
+
+    if score >= 4:
+        direction, label = "up",   "🟢 BET UP"
+    elif score <= -4:
         direction, label = "down", "🔴 BET DOWN"
     else:
         direction, label = None,   "⚪ HOLD"
@@ -189,6 +222,10 @@ def generate_signal() -> dict:
         "bb_low":     bb_low,
         "bb_high":    bb_high,
         "momentum":   momentum,
+        "mom_size":   mom_size,
+        "vol_ratio":  vol_ratio,
+        "order_flow": order_flow_delta,
+        "vwap":       vwap,
         "score":      score,
         "confidence": confidence,
         "direction":  direction,
@@ -218,3 +255,4 @@ def format_signal(sig: dict) -> str:
         "━━━━━━━━━━━━━━━━━━━━━━",
     ]
     return "\n".join(lines)
+        
