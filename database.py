@@ -1,5 +1,5 @@
 """
-database.py — SQLite database for BTC Prediction Telegram Bot
+database.py — SQLite database for Trend Pilot Bot
 """
 
 import sqlite3
@@ -26,30 +26,37 @@ def init_db():
 
     c.executescript("""
     CREATE TABLE IF NOT EXISTS users (
-        id              INTEGER PRIMARY KEY AUTOINCREMENT,
-        telegram_id     TEXT UNIQUE NOT NULL,
-        telegram_name   TEXT,
-        email           TEXT UNIQUE,
-        wallet_address  TEXT,
-        wallet_key      TEXT,
-        balance         REAL DEFAULT 0.0,
-        is_active       INTEGER DEFAULT 0,
-        is_owner        INTEGER DEFAULT 0,
-        fee_paid        INTEGER DEFAULT 0,
-        referral_code   TEXT UNIQUE,
-        referred_by     TEXT,
-        joined_at       TEXT DEFAULT CURRENT_TIMESTAMP
+        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+        telegram_id         TEXT UNIQUE NOT NULL,
+        telegram_name       TEXT,
+        email               TEXT UNIQUE,
+        wallet_address      TEXT,
+        wallet_key          TEXT,
+        balance             REAL DEFAULT 0.0,
+        is_active           INTEGER DEFAULT 0,
+        is_owner            INTEGER DEFAULT 0,
+        fee_paid            INTEGER DEFAULT 0,
+        referral_code       TEXT UNIQUE,
+        referred_by         TEXT,
+        points              INTEGER DEFAULT 0,
+        btc_auto_trade      INTEGER DEFAULT 1,
+        sports_betting      INTEGER DEFAULT 1,
+        sports_bet_amount   REAL DEFAULT 5.0,
+        joined_at           TEXT DEFAULT CURRENT_TIMESTAMP
     );
 
     CREATE TABLE IF NOT EXISTS trades (
         id              INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id         INTEGER,
+        trade_type      TEXT DEFAULT 'btc',
         direction       TEXT,
         amount          REAL,
         signal_score    REAL,
         confidence      REAL,
         market_id       INTEGER,
+        market_title    TEXT,
         outcome_id      INTEGER,
+        outcome_title   TEXT,
         status          TEXT DEFAULT 'pending',
         result          TEXT,
         pnl             REAL DEFAULT 0,
@@ -81,7 +88,36 @@ def init_db():
         id              INTEGER PRIMARY KEY AUTOINCREMENT,
         referrer_id     INTEGER,
         referee_id      INTEGER,
-        reward_paid     INTEGER DEFAULT 0,
+        points_awarded  INTEGER DEFAULT 100,
+        created_at      TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS sports_bets (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id         INTEGER,
+        market_id       INTEGER,
+        market_title    TEXT,
+        outcome_id      INTEGER,
+        outcome_title   TEXT,
+        amount          REAL,
+        confidence      REAL,
+        status          TEXT DEFAULT 'pending',
+        result          TEXT,
+        pnl             REAL DEFAULT 0,
+        tx_hash         TEXT,
+        placed_at       TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS pending_sports (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id         INTEGER,
+        market_id       INTEGER,
+        network_id      INTEGER,
+        market_title    TEXT,
+        outcome_id      INTEGER,
+        outcome_title   TEXT,
+        confidence      REAL,
+        expires_at      TEXT,
         created_at      TEXT DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -92,6 +128,28 @@ def init_db():
     );
     """)
 
+    conn.commit()
+    conn.close()
+
+
+# ── Migration helper ──────────────────────────────────────────────────────────
+def migrate():
+    """Add new columns to existing DB safely."""
+    conn = get_conn()
+    migrations = [
+        "ALTER TABLE users ADD COLUMN points INTEGER DEFAULT 0",
+        "ALTER TABLE users ADD COLUMN btc_auto_trade INTEGER DEFAULT 1",
+        "ALTER TABLE users ADD COLUMN sports_betting INTEGER DEFAULT 1",
+        "ALTER TABLE users ADD COLUMN sports_bet_amount REAL DEFAULT 5.0",
+        "ALTER TABLE trades ADD COLUMN trade_type TEXT DEFAULT 'btc'",
+        "ALTER TABLE trades ADD COLUMN market_title TEXT",
+        "ALTER TABLE trades ADD COLUMN outcome_title TEXT",
+    ]
+    for sql in migrations:
+        try:
+            conn.execute(sql)
+        except Exception:
+            pass
     conn.commit()
     conn.close()
 
@@ -155,10 +213,36 @@ def add_balance(telegram_id: str, amount: float):
     conn.close()
 
 
+def add_points(telegram_id: str, points: int):
+    conn = get_conn()
+    conn.execute(
+        "UPDATE users SET points = points + ? WHERE telegram_id = ?",
+        (points, str(telegram_id))
+    )
+    conn.commit()
+    conn.close()
+
+
 def get_all_active_users():
     conn = get_conn()
+    users = conn.execute("SELECT * FROM users WHERE is_active = 1").fetchall()
+    conn.close()
+    return users
+
+
+def get_btc_traders():
+    conn = get_conn()
     users = conn.execute(
-        "SELECT * FROM users WHERE is_active = 1"
+        "SELECT * FROM users WHERE is_active = 1 AND btc_auto_trade = 1"
+    ).fetchall()
+    conn.close()
+    return users
+
+
+def get_sports_bettors():
+    conn = get_conn()
+    users = conn.execute(
+        "SELECT * FROM users WHERE is_active = 1 AND sports_betting = 1"
     ).fetchall()
     conn.close()
     return users
@@ -174,28 +258,21 @@ def get_user_by_referral_code(code: str):
 
 
 # ── Trade helpers ─────────────────────────────────────────────────────────────
-def log_trade(user_id, direction, amount, confidence, market_id, outcome_id, tx_hash):
+def log_trade(user_id, direction, amount, confidence, market_id, outcome_id,
+              tx_hash, trade_type="btc", market_title="", outcome_title=""):
     conn = get_conn()
     c = conn.execute(
         """INSERT INTO trades
-           (user_id, direction, amount, confidence, market_id, outcome_id, tx_hash)
-           VALUES (?, ?, ?, ?, ?, ?, ?)""",
-        (user_id, direction, amount, confidence, market_id, outcome_id, tx_hash)
+           (user_id, trade_type, direction, amount, confidence,
+            market_id, market_title, outcome_id, outcome_title, tx_hash)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (user_id, trade_type, direction, amount, confidence,
+         market_id, market_title, outcome_id, outcome_title, tx_hash)
     )
     trade_id = c.lastrowid
     conn.commit()
     conn.close()
     return trade_id
-
-
-def get_user_trades(user_id: int, limit=10):
-    conn = get_conn()
-    trades = conn.execute(
-        "SELECT * FROM trades WHERE user_id = ? ORDER BY placed_at DESC LIMIT ?",
-        (user_id, limit)
-    ).fetchall()
-    conn.close()
-    return trades
 
 
 def get_user_stats(user_id: int):
@@ -212,6 +289,57 @@ def get_user_stats(user_id: int):
     """, (user_id,)).fetchone()
     conn.close()
     return stats
+
+
+# ── Sports bet helpers ────────────────────────────────────────────────────────
+def log_sports_bet(user_id, market_id, market_title, outcome_id,
+                   outcome_title, amount, confidence, tx_hash):
+    conn = get_conn()
+    c = conn.execute(
+        """INSERT INTO sports_bets
+           (user_id, market_id, market_title, outcome_id, outcome_title,
+            amount, confidence, tx_hash)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        (user_id, market_id, market_title, outcome_id,
+         outcome_title, amount, confidence, tx_hash)
+    )
+    bet_id = c.lastrowid
+    conn.commit()
+    conn.close()
+    return bet_id
+
+
+def save_pending_sport(user_id, market_id, network_id, market_title,
+                       outcome_id, outcome_title, confidence, expires_at):
+    conn = get_conn()
+    # Remove old pending for this user first
+    conn.execute("DELETE FROM pending_sports WHERE user_id = ?", (user_id,))
+    conn.execute(
+        """INSERT INTO pending_sports
+           (user_id, market_id, network_id, market_title, outcome_id,
+            outcome_title, confidence, expires_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        (user_id, market_id, network_id, market_title, outcome_id,
+         outcome_title, confidence, expires_at)
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_pending_sport(user_id):
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT * FROM pending_sports WHERE user_id = ?", (user_id,)
+    ).fetchone()
+    conn.close()
+    return row
+
+
+def clear_pending_sport(user_id):
+    conn = get_conn()
+    conn.execute("DELETE FROM pending_sports WHERE user_id = ?", (user_id,))
+    conn.commit()
+    conn.close()
 
 
 # ── Fee helpers ───────────────────────────────────────────────────────────────
@@ -256,18 +384,17 @@ def get_referral_count(user_id: int) -> int:
 def get_admin_stats():
     conn = get_conn()
     stats = {
-        "total_users":   conn.execute("SELECT COUNT(*) FROM users").fetchone()[0],
-        "active_users":  conn.execute("SELECT COUNT(*) FROM users WHERE is_active=1").fetchone()[0],
-        "total_trades":  conn.execute("SELECT COUNT(*) FROM trades").fetchone()[0],
-        "total_volume":  conn.execute("SELECT COALESCE(SUM(amount),0) FROM trades").fetchone()[0],
-        "total_fees":    conn.execute("SELECT COALESCE(SUM(amount),0) FROM fees").fetchone()[0],
-        "today_trades":  conn.execute(
-            "SELECT COUNT(*) FROM trades WHERE DATE(placed_at) = DATE('now')"
-        ).fetchone()[0],
-        "today_volume":  conn.execute(
-            "SELECT COALESCE(SUM(amount),0) FROM trades WHERE DATE(placed_at) = DATE('now')"
-        ).fetchone()[0],
+        "total_users":     conn.execute("SELECT COUNT(*) FROM users").fetchone()[0],
+        "active_users":    conn.execute("SELECT COUNT(*) FROM users WHERE is_active=1").fetchone()[0],
+        "btc_traders":     conn.execute("SELECT COUNT(*) FROM users WHERE is_active=1 AND btc_auto_trade=1").fetchone()[0],
+        "sports_bettors":  conn.execute("SELECT COUNT(*) FROM users WHERE is_active=1 AND sports_betting=1").fetchone()[0],
+        "total_trades":    conn.execute("SELECT COUNT(*) FROM trades").fetchone()[0],
+        "total_volume":    conn.execute("SELECT COALESCE(SUM(amount),0) FROM trades").fetchone()[0],
+        "total_fees":      conn.execute("SELECT COALESCE(SUM(amount),0) FROM fees").fetchone()[0],
+        "today_trades":    conn.execute("SELECT COUNT(*) FROM trades WHERE DATE(placed_at) = DATE('now')").fetchone()[0],
+        "today_volume":    conn.execute("SELECT COALESCE(SUM(amount),0) FROM trades WHERE DATE(placed_at) = DATE('now')").fetchone()[0],
         "total_referrals": conn.execute("SELECT COUNT(*) FROM referrals").fetchone()[0],
+        "sports_bets":     conn.execute("SELECT COUNT(*) FROM sports_bets").fetchone()[0],
     }
     conn.close()
     return stats
@@ -279,6 +406,7 @@ def get_leaderboard(limit=10):
         SELECT
             u.wallet_address,
             u.telegram_name,
+            u.points,
             COALESCE(SUM(t.amount), 0) as total_volume,
             COALESCE(SUM(t.pnl), 0) as total_profit,
             COUNT(t.id) as total_trades,
@@ -288,6 +416,19 @@ def get_leaderboard(limit=10):
         WHERE u.is_active = 1
         GROUP BY u.id
         ORDER BY total_volume DESC
+        LIMIT ?
+    """, (limit,)).fetchall()
+    conn.close()
+    return rows
+
+
+def get_points_leaderboard(limit=10):
+    conn = get_conn()
+    rows = conn.execute("""
+        SELECT wallet_address, telegram_name, points, referral_code
+        FROM users
+        WHERE is_active = 1
+        ORDER BY points DESC
         LIMIT ?
     """, (limit,)).fetchall()
     conn.close()

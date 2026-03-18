@@ -1,0 +1,13 @@
+[0;1;32m●[0m trendpilot.service - Trend Pilot Bot
+     Loaded: loaded (]8;;file://trend-pilot/etc/systemd/system/trendpilot.service\/etc/systemd/system/trendpilot.service]8;;\; [0;1;32menabled[0m; preset: [0;1;32menabled[0m)
+     Active: [0;1;32mactive (running)[0m since Wed 2026-03-18 08:42:12 UTC; 2s ago
+ Invocation: 3055e3110bf446db9deeea6af7e3af78
+   Main PID: 186312 (python3)
+      Tasks: 2[0;38;5;245m (limit: 452)[0m
+     Memory: 69.8M (peak: 69.8M)
+        CPU: 955ms
+     CGroup: /system.slice/trendpilot.service
+             ├─[0;38;5;245m186312 /usr/bin/python3 bot.py[0m
+             └─[0;38;5;245m186315 file -b /usr/bin/python3.13[0m
+
+Mar 18 08:42:12 trend-pilot systemd[1]: Started trendpilot.service - Trend Pilot Bot.
