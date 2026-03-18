@@ -319,7 +319,7 @@ def _generate_signal_from_candles(candles, ob_symbol="BTCUSDT", funding_symbol="
         "aggression": aggression,
         "triggers":   triggers,
         "reasons":    reasons,
-        "tradeable":  confidence >= 71 and direction is not None,
+        "tradeable":  confidence >= 65 and direction is not None,
     }
 
 
@@ -371,6 +371,6 @@ def format_signal(sig: dict) -> str:
 
     lines += [
         "━━━━━━━━━━━━━━━━━━━━━━",
-        f"{'✅ Auto-trade firing!' if sig['tradeable'] else '⏸ Below 71% — scanning...'}",
+        f"{'✅ Auto-trade firing!' if sig['tradeable'] else '⏸ Below 65% — scanning...'}",
     ]
     return "\n".join(lines)

@@ -19,6 +19,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 import database as db
 import signal_engine as se
+import sniper_engine as sne
 import sports_engine as spe
 import wallet_manager as wm
 import trader
@@ -92,11 +93,15 @@ def settings_keyboard(user):
     sport_status = "✅ ON" if user["sports_betting"] else "❌ OFF"
     btc_amt      = user["btc_bet_amount"] if user["btc_bet_amount"] else 2.0
     sport_amt    = user["sports_bet_amount"]
+    mode         = user["trading_mode"] if user["trading_mode"] else "hybrid"
+    mode_labels  = {"precision": "🎯 Precision", "sniper": "⚡ Sniper", "hybrid": "🔥 Hybrid"}
+    mode_label   = mode_labels.get(mode, "🔥 Hybrid")
     return InlineKeyboardMarkup([
         [InlineKeyboardButton(f"₿ BTC Auto-trade: {btc_status}", callback_data="toggle_btc")],
         [InlineKeyboardButton(f"₿ BTC Bet Amount: ${btc_amt:.0f}", callback_data="set_btc_amount")],
         [InlineKeyboardButton(f"⚽ Sports Betting: {sport_status}", callback_data="toggle_sports")],
         [InlineKeyboardButton(f"💵 Sports Bet Amount: ${sport_amt:.0f}", callback_data="set_sport_amount")],
+        [InlineKeyboardButton(f"🤖 Mode: {mode_label}", callback_data="cycle_mode")],
         [InlineKeyboardButton("🔙 Back to Menu", callback_data="menu")],
     ])
 
@@ -444,15 +449,24 @@ async def myaddress(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 # ── Sports bet amount conversation ────────────────────────────────────────────
 async def ask_sport_amount_msg(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     uid = str(update.effective_user.id)
+    # Check pending setting from DB
+    conn2 = db.get_conn()
+    pending2 = conn2.execute(
+        "SELECT pending_setting FROM users WHERE telegram_id = ?", (uid,)
+    ).fetchone()
+    conn2.close()
+    if not pending2 or pending2[0] != "sport_amount":
+        return
     try:
         amount = float(update.message.text.strip())
-        if amount < SPORTS_MIN_BET:
-            await update.message.reply_text(f"❌ Minimum is ${SPORTS_MIN_BET}. Enter again:")
+        if amount < 1.0:
+            await update.message.reply_text(f"❌ Minimum is $1. Enter again:")
             return ASK_SPORT_AMOUNT
         if amount > SPORTS_MAX_BET:
             await update.message.reply_text(f"❌ Maximum is ${SPORTS_MAX_BET}. Enter again:")
             return ASK_SPORT_AMOUNT
         db.update_user(uid, sports_bet_amount=amount)
+        db.update_user(uid, pending_setting=None)
         user = db.get_user(uid)
         await update.message.reply_text(
             f"✅ Sports bet amount set to *${amount:.0f}*",
@@ -467,7 +481,13 @@ async def ask_sport_amount_msg(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 async def ask_btc_amount_msg(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     uid = str(update.effective_user.id)
-    if not ctx.user_data.get("setting_btc_amount"):
+    # Check pending setting from DB
+    conn = db.get_conn()
+    pending = conn.execute(
+        "SELECT pending_setting FROM users WHERE telegram_id = ?", (uid,)
+    ).fetchone()
+    conn.close()
+    if not pending or pending[0] != "btc_amount":
         return
     try:
         amount = float(update.message.text.strip())
@@ -477,8 +497,7 @@ async def ask_btc_amount_msg(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if amount > 500:
             await update.message.reply_text("❌ Maximum is $500. Enter again:")
             return
-        db.update_user(uid, btc_bet_amount=amount)
-        ctx.user_data["setting_btc_amount"] = False
+        db.update_user(uid, btc_bet_amount=amount, pending_setting=None)
         user = db.get_user(uid)
         await update.message.reply_text(
             f"✅ BTC bet amount set to *${amount:.0f}*",
@@ -927,19 +946,39 @@ async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     if data == "signal":
         await query.message.reply_text("⏳ Analyzing BTC & ETH...")
+        best = None
         try:
             btc = se.generate_signal()
             await query.message.reply_text(se.format_signal(btc), parse_mode="Markdown")
+            if not best or btc["confidence"] > best["confidence"]:
+                best = btc
         except Exception as e:
             await query.message.reply_text(f"⚠️ BTC: {e}")
         try:
             eth = se.generate_eth_signal()
-            await query.message.reply_text(
-                se.format_signal(eth), parse_mode="Markdown",
-                reply_markup=main_menu_keyboard(is_owner(uid))
-            )
+            await query.message.reply_text(se.format_signal(eth), parse_mode="Markdown")
+            if not best or eth["confidence"] > best["confidence"]:
+                best = eth
         except Exception as e:
             await query.message.reply_text(f"⚠️ ETH: {e}")
+
+        # If signal is tradeable, offer to trade now
+        if best and best["tradeable"]:
+            await query.message.reply_text(
+                f"⚡ Signal above threshold!\n"
+                f"Auto-trade fires on next scan.\n"
+                f"Tap below to trade NOW:",
+                parse_mode="Markdown",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton(f"⚡ Trade {best['asset']} {best['direction'].upper()} NOW",
+                                         callback_data=f"manual_trade_{best['asset'].lower()}_{best['direction']}")],
+                    [InlineKeyboardButton("⏭ Skip", callback_data="menu")]
+                ])
+            )
+        else:
+            await query.message.reply_text(
+                "📋 Menu:", reply_markup=main_menu_keyboard(is_owner(uid))
+            )
 
     elif data == "sports_pick":
         if not user["sports_betting"]:
@@ -982,11 +1021,10 @@ async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         try:
             await query.message.reply_text("⏳ Placing sports bet...")
             pk     = wm.decrypt_key(user["wallet_key"])
-            result = trader.place_trade(pk, "up", amount)
-            tx     = result.get("buy_tx", "pending")
-            db.deduct_balance(uid, amount)
+            result = trader.run_cli(["trade","buy","--market-id",str(pending["market_id"]),"--network-id",str(pending["network_id"]),"--outcome-id",str(pending["outcome_id"]),"--value",str(amount),"--slippage","0.05"], pk)
+            execution = result.get("execution", {})
+            tx = execution.get("txHash", "pending")
             db.log_sports_bet(
-                user["id"], pending["market_id"], pending["market_title"],
                 pending["outcome_id"], pending["outcome_title"],
                 amount, pending["confidence"], tx
             )
@@ -1153,6 +1191,22 @@ async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             reply_markup=settings_keyboard(user)
         )
 
+    elif data == "cycle_mode":
+        user    = db.get_user(uid)
+        current = user["trading_mode"] or "hybrid"
+        modes   = ["precision", "sniper", "hybrid"]
+        next_mode = modes[(modes.index(current) + 1) % len(modes)] if current in modes else "hybrid"
+        db.update_user(uid, trading_mode=next_mode)
+        user = db.get_user(uid)
+        labels = {"precision": "🎯 Precision — quality signals only",
+                  "sniper":    "⚡ Sniper — fast trigger, high frequency",
+                  "hybrid":    "🔥 Hybrid — best of both worlds"}
+        await query.message.reply_text(
+            f"✅ Trading mode: *{labels[next_mode]}*",
+            parse_mode="Markdown",
+            reply_markup=settings_keyboard(user)
+        )
+
     elif data == "toggle_btc":
         new_val = 0 if user["btc_auto_trade"] else 1
         db.update_user(uid, btc_auto_trade=new_val)
@@ -1177,15 +1231,15 @@ async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     elif data == "set_sport_amount":
         await query.message.reply_text(
-            f"💵 Enter sports bet amount (${SPORTS_MIN_BET:.0f}–${SPORTS_MAX_BET:.0f}):"
+            f"💵 Enter sports bet amount ($1–$500):"
         )
-        ctx.user_data["setting_sport_amount"] = True
+        db.update_user(uid, pending_setting="sport_amount")
 
     elif data == "set_btc_amount":
         await query.message.reply_text(
             f"₿ Enter BTC bet amount ($1–$500):"
         )
-        ctx.user_data["setting_btc_amount"] = True
+        db.update_user(uid, pending_setting="btc_amount")
 
     elif data == "deposit":
         await query.message.reply_text(
@@ -1289,6 +1343,7 @@ async def auto_trade(app: Application):
         logger.info(f"Signal {sig['confidence']}% below threshold — skipping")
         return
 
+    users = [u for u in users if (u["trading_mode"] or "hybrid") in ["precision", "hybrid"]]
     for user in users:
         uid = user["telegram_id"]
 
@@ -1383,6 +1438,69 @@ async def sports_scan(app: Application):
 
     except Exception as e:
         logger.error(f"Sports scan error: {e}")
+
+
+# ── Sniper scanner ───────────────────────────────────────────────────────────
+async def sniper_scan(app: Application):
+    """Run every 60 seconds — fires on sniper triggers for sniper/hybrid users."""
+    sniper_users = [u for u in db.get_btc_traders()
+                    if (u["trading_mode"] or "hybrid") in ["sniper", "hybrid"]]
+    if not sniper_users:
+        return
+
+    best = None
+    for asset in ["BTC", "ETH"]:
+        try:
+            sig = sne.generate_sniper_signal(asset)
+            logger.info(f"Sniper {asset}: score={sig['score']} {sig['label']}")
+            if sig["tradeable"]:
+                if not best or abs(sig["score"]) > abs(best["score"]):
+                    best = sig
+        except Exception as e:
+            logger.error(f"Sniper error {asset}: {e}")
+
+    if not best:
+        return
+
+    logger.info(f"Sniper firing: {best['asset']} {best['direction']}")
+
+    for user in sniper_users:
+        uid = user["telegram_id"]
+        bet = user.get("btc_bet_amount") or BET_AMOUNT
+        if user["balance"] < bet:
+            continue
+        try:
+            pk     = wm.decrypt_key(user["wallet_key"])
+            result = trader.place_trade(pk, best["direction"], bet, best["asset"].lower())
+            tx     = result.get("buy_tx", "pending")
+            try:
+                onchain = wm.get_usd1_balance(user["wallet_address"])
+                if onchain >= 0:
+                    db.update_user(uid, balance=onchain)
+            except Exception:
+                pass
+            db.log_trade(
+                user["id"], best["direction"], bet, best["confidence"],
+                result.get("market_id", 0), result.get("outcome_id", 0),
+                tx, best["asset"].lower(),
+                result.get("market", ""), result.get("outcome", "")
+            )
+            triggers_text = "\n".join(best["triggers"]) if best["triggers"] else ""
+            await app.bot.send_message(
+                chat_id=uid,
+                text=(
+                    f"🔫 *Sniper Trade Fired!*\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"Asset    : {best['asset']}\n"
+                    f"Direction: {best['direction'].upper()}\n"
+                    f"Stake    : ${bet:.2f}\n"
+                    f"{triggers_text}\n"
+                    f"Tx: `{tx[:20]}...`"
+                ),
+                parse_mode="Markdown"
+            )
+        except Exception as e:
+            logger.error(f"Sniper trade failed {uid}: {e}")
 
 
 # ── Auto-claim ────────────────────────────────────────────────────────────────
@@ -1540,8 +1658,8 @@ def main():
     app.add_handler(bypass_conv)
     app.add_handler(reg_conv)
     app.add_handler(CallbackQueryHandler(button_handler))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, ask_sport_amount_msg))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, ask_btc_amount_msg))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, ask_sport_amount_msg))
     app.add_handler(CommandHandler("menu",        menu))
     app.add_handler(CommandHandler("verify",      verify_deposit))
     app.add_handler(CommandHandler("mykey",       mykey))
@@ -1569,6 +1687,7 @@ def main():
             asyncio.run_coroutine_threadsafe(coro, loop)
 
         scheduler.add_job(lambda: run(auto_trade(app)), 'interval', minutes=5)
+        scheduler.add_job(lambda: run(sniper_scan(app)), 'interval', minutes=1)
         # Sports scan before major game times (17:45, 19:45, 20:45 UTC)
         scheduler.add_job(lambda: run(sports_scan(app)), 'cron', hour=17, minute=45)
         scheduler.add_job(lambda: run(sports_scan(app)), 'cron', hour=19, minute=45)
