@@ -1,103 +1,68 @@
 """
-trader.py — On-chain trading on Myriad Markets (BSC)
-Signs and sends transactions using user's private key
+trader.py — Myriad Markets trader using official Myriad CLI
+Replaces custom RPC logic with myriad CLI for reliability
 """
 
-import requests
-import json
 import os
-from eth_account import Account
-from eth_account.messages import encode_defunct
+import json
+import subprocess
+import requests
+from dotenv import load_dotenv
 
-BSC_RPCS = [
-    "https://bsc-rpc.publicnode.com",
-    "https://bsc-rpc.publicnode.com",
-    
-    "https://bsc.meowrpc.com",
-]
-BSC_RPC = BSC_RPCS[0]
-USD1_ADDRESS         = "0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d"
-MYRIAD_CONTRACT      = "0x39E66eE6b2ddaf4DEfDEd3038E0162180dbeF340"
-MYRIAD_API           = "https://api-v2.myriadprotocol.com"
-CHAIN_ID             = 56  # BSC Mainnet
+load_dotenv()
 
-# USD1 approve ABI
-APPROVE_ABI = "0x095ea7b3"  # approve(address,uint256)
-
-# Myriad buy ABI
-BUY_ABI = "0x8a4e5e9c"  # buy(uint256,uint256,uint256,uint256)
+MYRIAD_API  = "https://api-v2.myriadprotocol.com"
+USD1_ADDRESS = "0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d"
+RPC_URL     = "https://bsc-rpc.publicnode.com"
 
 
-def rpc_call(method, params):
-    for rpc in BSC_RPCS:
-        try:
-            resp = requests.post(rpc, json={
-                "jsonrpc": "2.0", "method": method,
-                "params": params, "id": 1
-            }, timeout=15)
-            result = resp.json().get("result")
-            if result is not None:
-                return result
-        except Exception as e:
-            print(f"RPC {rpc} failed: {e}")
-            continue
-    raise Exception("All BSC RPC endpoints failed")
+def run_cli(args: list, private_key: str) -> dict:
+    """Run myriad CLI command and return JSON output."""
+    cmd = [
+        "myriad",
+        "--json",
+        "--rpc-url", RPC_URL,
+        "--private-key", private_key,
+    ] + args
+
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        timeout=60
+    )
+
+    if result.returncode != 0:
+        raise Exception(f"CLI error: {result.stderr.strip() or result.stdout.strip()}")
+
+    try:
+        return json.loads(result.stdout)
+    except json.JSONDecodeError:
+        # CLI returned plain text — still success
+        return {"output": result.stdout.strip()}
 
 
-def get_nonce(address: str) -> int:
-    result = rpc_call("eth_getTransactionCount", [address, "latest"])
-    return int(result, 16)
+def rpc_call(method: str, params: list):
+    """Direct RPC call for read-only operations."""
+    resp = requests.post(RPC_URL, json={
+        "jsonrpc": "2.0", "method": method,
+        "params": params, "id": 1
+    }, timeout=15)
+    return resp.json().get("result")
 
 
-def get_gas_price() -> int:
-    result = rpc_call("eth_gasPrice", [])
-    return int(result, 16)
-
-
-def pad32(value: int) -> str:
-    return hex(value)[2:].zfill(64)
-
-
-def build_approve_data(spender: str, amount: int) -> str:
-    """Build USD1 approve() calldata."""
-    spender_padded = spender[2:].lower().zfill(64)
-    amount_padded  = pad32(amount)
-    return APPROVE_ABI + spender_padded + amount_padded
-
-
-def sign_and_send(private_key: str, to: str, data: str, value: int = 0) -> str:
-    """Sign a transaction and broadcast it."""
-    account  = Account.from_key(private_key)
-    address  = account.address
-    nonce    = get_nonce(address)
-    gas_price = get_gas_price()
-
-    tx = {
-        "nonce":    nonce,
-        "gasPrice": gas_price,
-        "gas":      200000,
-        "to":       to,
-        "value":    value,
-        "data":     data,
-        "chainId":  CHAIN_ID
-    }
-
-    signed = account.sign_transaction(tx)
-    raw_tx = signed.raw_transaction.hex()
-    if not raw_tx.startswith("0x"):
-        raw_tx = "0x" + raw_tx
-
-    tx_hash = rpc_call("eth_sendRawTransaction", [raw_tx])
-    return tx_hash
-
-
-def get_market_and_outcome(direction: str, asset: str = "bitcoin") -> dict:
-    """Get market ID and outcome ID from Myriad API."""
+def get_open_market(asset: str = "bitcoin") -> dict:
+    """Find the most current open candle market for given asset."""
     resp = requests.get(
         f"{MYRIAD_API}/markets",
-        params={"keyword": f"{asset} candles", "state": "open",
-                "sort": "volume", "order": "desc",
-                "network_id": 56, "limit": 20},
+        params={
+            "keyword": f"{asset} candles",
+            "state": "open",
+            "network_id": 56,
+            "sort": "volume",
+            "order": "desc",
+            "limit": 10
+        },
         timeout=10
     )
     resp.raise_for_status()
@@ -105,145 +70,162 @@ def get_market_and_outcome(direction: str, asset: str = "bitcoin") -> dict:
 
     for m in markets:
         outcomes = m.get("outcomes", [])
-        titles   = [o["title"].lower() for o in outcomes]
+        if len(outcomes) >= 2:
+            return m
 
-        up_kw   = ["up", "higher", "more green"]
-        down_kw = ["down", "lower", "more red"]
-
-        has_up   = any(any(k in t for k in up_kw) for t in titles)
-        has_down = any(any(k in t for k in down_kw) for t in titles)
-
-        if has_up and has_down:
-            for o in outcomes:
-                t = o["title"].lower()
-                if direction == "up" and any(k in t for k in up_kw):
-                    return {
-                        "market_id":  m["id"],
-                        "network_id": m["networkId"],
-                        "outcome_id": o["id"],
-                        "title":      m["title"],
-                        "outcome":    o["title"],
-                        "price":      o["price"]
-                    }
-                if direction == "down" and any(k in t for k in down_kw):
-                    return {
-                        "market_id":  m["id"],
-                        "network_id": m["networkId"],
-                        "outcome_id": o["id"],
-                        "title":      m["title"],
-                        "outcome":    o["title"],
-                        "price":      o["price"]
-                    }
-    raise Exception("No suitable BTC market found")
+    raise Exception(f"No open {asset} candle market found")
 
 
-def get_quote(market_id: int, network_id: int, outcome_id: int, amount: float) -> dict:
-    """Get trade quote and calldata from Myriad API."""
-    resp = requests.post(
-        f"{MYRIAD_API}/markets/quote",
-        json={
-            "market_id":  market_id,
-            "network_id": network_id,
-            "outcome_id": outcome_id,
-            "action":     "buy",
-            "value":      amount,
-            "slippage":   0.01
-        },
-        timeout=10
-    )
-    resp.raise_for_status()
-    return resp.json()
+def place_trade(private_key: str, direction: str,
+                amount_usd: float, asset: str = "bitcoin") -> dict:
+    """Place a trade using Myriad CLI."""
 
+    # Get current open market
+    market = get_open_market(asset)
+    market_id  = market["id"]
+    network_id = market["networkId"]
+    outcomes   = market["outcomes"]
 
-def place_trade(private_key: str, direction: str, amount_usd: float, asset: str = "bitcoin") -> dict:
-    """
-    Full trade flow:
-    1. Get market + quote from Myriad API
-    2. Approve USD1 spending
-    3. Execute buy via Myriad contract
-    Returns tx details
-    """
-    account = Account.from_key(private_key)
-    address = account.address
+    # Map direction to outcome
+    # More Green = UP = outcome 0
+    # More Red   = DOWN = outcome 1
+    if direction.lower() == "up":
+        outcome = next((o for o in outcomes if "green" in o["title"].lower()), outcomes[0])
+    else:
+        outcome = next((o for o in outcomes if "red" in o["title"].lower()), outcomes[1])
 
-    # Step 1 — Get market and quote
-    market = get_market_and_outcome(direction, asset)
-    quote  = get_quote(
-        market["market_id"], market["network_id"],
-        market["outcome_id"], amount_usd
-    )
+    outcome_id = outcome["id"]
 
-    shares   = round(quote.get("shares", 0), 4)
-    calldata = quote.get("calldata")
+    # Execute trade via CLI
+    result = run_cli([
+        "trade", "buy",
+        "--market-id",  str(market_id),
+        "--network-id", str(network_id),
+        "--outcome-id", str(outcome_id),
+        "--value",      str(amount_usd),
+        "--slippage",   "0.05",
+    ], private_key)
 
-    if not calldata:
-        raise Exception("No calldata returned from Myriad API")
+    # Extract execution details
+    execution = result.get("execution", {})
+    quote     = result.get("quote", {})
 
-    # Step 2 — Approve USD1
-    amount_wei    = int(amount_usd * 10**18)
-    approve_data  = build_approve_data(MYRIAD_CONTRACT, amount_wei)
-    approve_tx    = sign_and_send(private_key, USD1_ADDRESS, approve_data)
-
-    if not approve_tx:
-        raise Exception("Approval transaction failed")
-
-    # Step 3 — Execute trade using Myriad calldata
-    buy_tx = sign_and_send(private_key, MYRIAD_CONTRACT, calldata)
-
-    if not buy_tx:
-        raise Exception("Buy transaction failed")
+    tx_hash = execution.get("txHash", "pending")
+    shares  = quote.get("shares", 0)
+    payout  = round(shares, 2)
 
     return {
         "direction":  direction,
         "amount":     amount_usd,
         "shares":     shares,
-        "payout":     round(shares * 1.0, 2),
-        "approve_tx": approve_tx,
-        "buy_tx":     buy_tx,
-        "market":     market["title"][:50],
-        "outcome":    market["outcome"]
+        "payout":     payout,
+        "approve_tx": tx_hash,
+        "buy_tx":     tx_hash,
+        "market":     market["title"],
+        "market_id":  market_id,
+        "network_id": network_id,
+        "outcome":    outcome["title"],
+        "outcome_id": outcome_id,
+        "status":     execution.get("status", 0),
     }
 
 
 def get_claimable_positions(wallet_address: str) -> list:
-    """Get all claimable winning positions for a wallet."""
+    """Get claimable positions for wallet."""
     try:
         resp = requests.get(
             f"{MYRIAD_API}/users/{wallet_address}/portfolio",
+            params={"network_id": 56, "page_size": 100},
             timeout=10
         )
         resp.raise_for_status()
-        data = resp.json().get("data", [])
-        return [p for p in data if p.get("winningsToClaim") and not p.get("winningsClaimed")]
+        positions = resp.json().get("data", [])
+
+        claimable = []
+        for p in positions:
+            if p.get("winningsToClaim") and not p.get("winningsClaimed"):
+                shares = p.get("shares", 0)
+                price  = p.get("price", 1)
+                value  = round(shares * 1.0, 2)  # winning shares = $1 each
+                profit = round(value - (shares * price), 2)
+                claimable.append({
+                    "marketId":     p["marketId"],
+                    "networkId":    p.get("networkId", 56),
+                    "outcomeId":    p["outcomeId"],
+                    "marketTitle":  p.get("marketTitle", ""),
+                    "outcomeTitle": p.get("outcomeTitle", ""),
+                    "shares":       shares,
+                    "value":        value,
+                    "profit":       profit,
+                    "roi":          profit / (shares * price) if shares * price > 0 else 0,
+                })
+        return claimable
     except Exception as e:
         print(f"Portfolio fetch error: {e}")
         return []
 
 
-def claim_winnings(private_key: str, market_id: int, network_id: int, outcome_id: int) -> dict:
-    """Claim winnings for a resolved market."""
-    # Get calldata from Myriad API
-    resp = requests.post(
-        f"{MYRIAD_API}/markets/claim",
-        json={
-            "market_id":  market_id,
-            "network_id": network_id,
-            "outcome_id": outcome_id
-        },
-        timeout=10
-    )
-    resp.raise_for_status()
-    calldata = resp.json().get("calldata")
+def claim_winnings(private_key: str, market_id: int,
+                   network_id: int, outcome_id: int) -> dict:
+    """Claim winnings using Myriad CLI."""
+    result = run_cli([
+        "claim", "winnings",
+        "--market-id",  str(market_id),
+        "--network-id", str(network_id),
+        "--outcome-id", str(outcome_id),
+    ], private_key)
 
-    if not calldata:
-        raise Exception("No calldata returned for claim")
+    execution = result.get("execution", {})
+    return {
+        "tx_hash": execution.get("txHash", ""),
+        "status":  execution.get("status", 0),
+    }
 
-    tx_hash = sign_and_send(private_key, MYRIAD_CONTRACT, calldata)
-    return {"tx_hash": tx_hash, "market_id": market_id}
+
+def claim_all_winnings(private_key: str, wallet_address: str) -> dict:
+    """Claim all claimable positions at once."""
+    result = run_cli([
+        "claim", "all",
+        "--network-id", "56",
+        "--wallet", wallet_address,
+    ], private_key)
+    return result
+
 
 def build_transfer_data(to: str, amount: int) -> str:
     """Build ERC20 transfer() calldata."""
     TRANSFER_ABI = "0xa9059cbb"
     to_padded     = to[2:].lower().zfill(64)
-    amount_padded = pad32(amount)
+    amount_padded = hex(amount)[2:].zfill(64)
     return TRANSFER_ABI + to_padded + amount_padded
+
+
+def sign_and_send(private_key: str, to: str, data: str) -> str:
+    """Send a raw transaction via CLI wallet."""
+    from eth_account import Account
+    import requests as req
+
+    account  = Account.from_key(private_key)
+    nonce    = rpc_call("eth_getTransactionCount", [account.address, "latest"])
+    gas_price = rpc_call("eth_gasPrice", [])
+
+    tx = {
+        "to":       to,
+        "data":     data,
+        "nonce":    int(nonce, 16),
+        "gas":      100000,
+        "gasPrice": int(gas_price, 16),
+        "chainId":  56,
+        "value":    0,
+    }
+
+    signed = Account.sign_transaction(tx, private_key)
+    raw    = signed.raw_transaction.hex()
+    if not raw.startswith("0x"):
+        raw = "0x" + raw
+
+    resp = req.post(RPC_URL, json={
+        "jsonrpc": "2.0", "method": "eth_sendRawTransaction",
+        "params": [raw], "id": 1
+    }, timeout=20)
+    return resp.json().get("result", "")
