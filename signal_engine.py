@@ -196,13 +196,6 @@ def generate_signal() -> dict:
     else:
         score -= 1; reasons.append(f"Below VWAP → Bearish bias 🔴")
 
-    # Confidence scaling
-    max_score  = 12
-    confidence = round((score + max_score) / (max_score * 2) * 100, 1)
-
-    if score >= 4:
-        direction, label = "up",   "🟢 BET UP"
-    elif score <= -4:
    # Confidence scaling
     max_score  = 12
     confidence = round((score + max_score) / (max_score * 2) * 100, 1)
