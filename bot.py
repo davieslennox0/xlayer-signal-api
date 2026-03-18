@@ -789,6 +789,78 @@ async def settings_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     )
 
 
+# ── /analyze ─────────────────────────────────────────────────────────────────
+async def analyze_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    uid = str(update.effective_user.id)
+    if not is_owner(uid):
+        await update.message.reply_text("❌ Admin only.")
+        return
+
+    conn = db.get_conn()
+
+    # Overall win rate
+    total = conn.execute("SELECT COUNT(*) FROM trades WHERE result IN ('win','loss')").fetchone()[0]
+    wins  = conn.execute("SELECT COUNT(*) FROM trades WHERE result='win'").fetchone()[0]
+    wr    = round(wins/total*100,1) if total else 0
+
+    # Win rate by regime
+    for regime in ["ranging","expanding","contracting"]:
+        t = conn.execute(f"SELECT COUNT(*) FROM trades WHERE result IN ('win','loss') AND bb_regime=?", (regime,)).fetchone()[0]
+        w = conn.execute(f"SELECT COUNT(*) FROM trades WHERE result='win' AND bb_regime=?", (regime,)).fetchone()[0]
+        rr = round(w/t*100,1) if t else 0
+
+    # Win rate by direction
+    for d in ["up","down"]:
+        t = conn.execute(f"SELECT COUNT(*) FROM trades WHERE result IN ('win','loss') AND direction=?", (d,)).fetchone()[0]
+        w = conn.execute(f"SELECT COUNT(*) FROM trades WHERE result='win' AND direction=?", (d,)).fetchone()[0]
+
+    # Best confidence range
+    ranges = [(71,75),(75,80),(80,85),(85,90),(90,100)]
+    range_stats = []
+    for lo, hi in ranges:
+        t = conn.execute("SELECT COUNT(*) FROM trades WHERE result IN ('win','loss') AND confidence>=? AND confidence<?", (lo,hi)).fetchone()[0]
+        w = conn.execute("SELECT COUNT(*) FROM trades WHERE result='win' AND confidence>=? AND confidence<?", (lo,hi)).fetchone()[0]
+        if t > 0:
+            range_stats.append((lo, hi, t, round(w/t*100,1)))
+
+    # By hour
+    best_hours = conn.execute("""
+        SELECT strftime('%H', placed_at) as hr,
+               COUNT(*) as total,
+               SUM(CASE WHEN result='win' THEN 1 ELSE 0 END) as wins
+        FROM trades WHERE result IN ('win','loss')
+        GROUP BY hr ORDER BY wins*1.0/total DESC LIMIT 3
+    """).fetchall()
+
+    conn.close()
+
+    lines = [
+        "📊 *Trade Pattern Analysis*",
+        "━━━━━━━━━━━━━━━━━━━━",
+        f"Total settled : {total}",
+        f"Overall WR    : {wr}%",
+        "━━━━━━━━━━━━━━━━━━━━",
+        "*Win Rate by Confidence:*"
+    ]
+    for lo, hi, t, wr2 in range_stats:
+        lines.append(f"  {lo}-{hi}% conf: {wr2}% WR ({t} trades)")
+
+    if best_hours:
+        lines.append("*Best Hours (UTC):*")
+        for h in best_hours:
+            hr_wr = round(h[2]/h[1]*100,1) if h[1] else 0
+            lines.append(f"  {h[0]}:00 UTC — {hr_wr}% WR ({h[1]} trades)")
+
+    lines.append("━━━━━━━━━━━━━━━━━━━━")
+    lines.append("_More patterns unlock after 50+ trades_")
+
+    await update.message.reply_text(
+        "\n".join(lines),
+        parse_mode="Markdown",
+        reply_markup=main_menu_keyboard(True)
+    )
+
+
 # ── /admin ────────────────────────────────────────────────────────────────────
 async def admin_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     uid = str(update.effective_user.id)
@@ -1258,7 +1330,13 @@ async def auto_trade(app: Application):
                 sig["confidence"], result.get("market_id", 0),
                 result.get("outcome_id", 0), tx,
                 sig.get("asset", "btc").lower(),
-                result.get("market", ""), result.get("outcome", "")
+                result.get("market", ""), result.get("outcome", ""),
+                bb_regime   = sig.get("bb_regime", ""),
+                rsi         = sig.get("rsi", 0),
+                bias        = sig.get("bias", 0),
+                aggression  = sig.get("aggression", ""),
+                vwap_dist   = sig.get("vwap_dist", 0),
+                funding     = sig.get("funding", 0)
             )
             await app.bot.send_message(
                 chat_id=uid,
@@ -1477,6 +1555,7 @@ def main():
     app.add_handler(CommandHandler("referral",    referral_cmd))
     app.add_handler(CommandHandler("settings",    settings_cmd))
     app.add_handler(CommandHandler("admin",       admin_cmd))
+    app.add_handler(CommandHandler("analyze",     analyze_cmd))
     app.add_handler(CommandHandler("help",        help_cmd))
     app.add_handler(CommandHandler("withdraw",    lambda u, c: u.message.reply_text(
         "💸 Visit myriad.markets → connect wallet → withdraw.")))

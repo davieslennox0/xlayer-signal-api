@@ -259,15 +259,18 @@ def get_user_by_referral_code(code: str):
 
 # ── Trade helpers ─────────────────────────────────────────────────────────────
 def log_trade(user_id, direction, amount, confidence, market_id, outcome_id,
-              tx_hash, trade_type="btc", market_title="", outcome_title=""):
+              tx_hash, trade_type="btc", market_title="", outcome_title="",
+              bb_regime="", rsi=0, bias=0, aggression="", vwap_dist=0, funding=0):
     conn = get_conn()
     c = conn.execute(
         """INSERT INTO trades
            (user_id, trade_type, direction, amount, confidence,
-            market_id, market_title, outcome_id, outcome_title, tx_hash)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            market_id, market_title, outcome_id, outcome_title, tx_hash,
+            bb_regime, rsi_at_trade, bias_score, aggression, vwap_dist, funding_at_trade)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (user_id, trade_type, direction, amount, confidence,
-         market_id, market_title, outcome_id, outcome_title, tx_hash)
+         market_id, market_title, outcome_id, outcome_title, tx_hash,
+         bb_regime, rsi, bias, aggression, vwap_dist, funding or 0)
     )
     trade_id = c.lastrowid
     conn.commit()
