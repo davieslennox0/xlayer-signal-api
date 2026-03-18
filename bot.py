@@ -1212,17 +1212,9 @@ async def auto_trade(app: Application):
     logger.info(f"Best signal: {sig.get('asset','BTC')} {sig['confidence']}% {sig['label']}")
 
     users = db.get_btc_traders()
-    for user in users:
-        try:
-            await app.bot.send_message(
-                chat_id=user["telegram_id"],
-                text=se.format_signal(sig),
-                parse_mode="Markdown"
-            )
-        except Exception:
-            pass
 
     if not sig["tradeable"]:
+        logger.info(f"Signal {sig['confidence']}% below threshold — skipping")
         return
 
     for user in users:
@@ -1497,7 +1489,7 @@ def main():
         def run(coro):
             asyncio.run_coroutine_threadsafe(coro, loop)
 
-        scheduler.add_job(lambda: run(auto_trade(app)), 'interval', minutes=15)
+        scheduler.add_job(lambda: run(auto_trade(app)), 'interval', minutes=5)
         # Sports scan before major game times (17:45, 19:45, 20:45 UTC)
         scheduler.add_job(lambda: run(sports_scan(app)), 'cron', hour=17, minute=45)
         scheduler.add_job(lambda: run(sports_scan(app)), 'cron', hour=19, minute=45)
