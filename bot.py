@@ -543,16 +543,21 @@ async def signal_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not is_active(uid):
         await update.message.reply_text("❌ Account not active.")
         return
-    await update.message.reply_text("⏳ Analyzing BTC...")
+    await update.message.reply_text("⏳ Analyzing BTC & ETH...")
     try:
-        sig = se.generate_signal()
+        btc = se.generate_signal()
+        await update.message.reply_text(se.format_signal(btc), parse_mode="Markdown")
+    except Exception as e:
+        await update.message.reply_text(f"⚠️ BTC signal error: {e}")
+    try:
+        eth = se.generate_eth_signal()
         await update.message.reply_text(
-            se.format_signal(sig),
+            se.format_signal(eth),
             parse_mode="Markdown",
             reply_markup=main_menu_keyboard(is_owner(uid))
         )
     except Exception as e:
-        await update.message.reply_text(f"⚠️ Signal error: {e}")
+        await update.message.reply_text(f"⚠️ ETH signal error: {e}")
 
 
 # ── /sports ───────────────────────────────────────────────────────────────────
@@ -755,15 +760,20 @@ async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     user = db.get_user(uid)
 
     if data == "signal":
-        await query.message.reply_text("⏳ Analyzing BTC...")
+        await query.message.reply_text("⏳ Analyzing BTC & ETH...")
         try:
-            sig = se.generate_signal()
+            btc = se.generate_signal()
+            await query.message.reply_text(se.format_signal(btc), parse_mode="Markdown")
+        except Exception as e:
+            await query.message.reply_text(f"⚠️ BTC: {e}")
+        try:
+            eth = se.generate_eth_signal()
             await query.message.reply_text(
-                se.format_signal(sig), parse_mode="Markdown",
+                se.format_signal(eth), parse_mode="Markdown",
                 reply_markup=main_menu_keyboard(is_owner(uid))
             )
         except Exception as e:
-            await query.message.reply_text(f"⚠️ {e}")
+            await query.message.reply_text(f"⚠️ ETH: {e}")
 
     elif data == "sports_pick":
         if not user["sports_betting"]:
@@ -1036,11 +1046,27 @@ async def send_win_card(app, chat_id: str, username: str, market_title: str,
 # ── Auto-trader ───────────────────────────────────────────────────────────────
 async def auto_trade(app: Application):
     logger.info("Running auto-trade scan...")
+
+    # Run BTC and ETH signals
+    signals = []
     try:
-        sig = se.generate_signal()
+        btc_sig = se.generate_signal()
+        signals.append(btc_sig)
     except Exception as e:
-        logger.error(f"Signal error: {e}")
+        logger.error(f"BTC signal error: {e}")
+
+    try:
+        eth_sig = se.generate_eth_signal()
+        signals.append(eth_sig)
+    except Exception as e:
+        logger.error(f"ETH signal error: {e}")
+
+    if not signals:
         return
+
+    # Use the highest confidence signal
+    sig = max(signals, key=lambda s: s["confidence"])
+    logger.info(f"Best signal: {sig.get('asset','BTC')} {sig['confidence']}% {sig['label']}")
 
     users = db.get_btc_traders()
     for user in users:
@@ -1062,7 +1088,7 @@ async def auto_trade(app: Application):
             continue
         try:
             pk     = wm.decrypt_key(user["wallet_key"])
-            result = trader.place_trade(pk, sig["direction"], BET_AMOUNT)
+            result = trader.place_trade(pk, sig["direction"], BET_AMOUNT, sig.get("asset", "bitcoin").lower())
             tx     = result.get("buy_tx", "pending")
             db.deduct_balance(uid, BET_AMOUNT)
             db.log_trade(

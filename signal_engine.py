@@ -9,15 +9,23 @@ import numpy as np
 
 
 # ── Price Data ────────────────────────────────────────────────────────────────
-def get_btc_candles(limit=100):
-    """Fetch 5-minute BTC candles from CryptoCompare."""
+def get_candles(symbol="BTC", limit=100):
+    """Fetch 5-minute candles from CryptoCompare."""
     resp = requests.get(
         "https://min-api.cryptocompare.com/data/v2/histominute",
-        params={"fsym": "BTC", "tsym": "USD", "limit": limit},
+        params={"fsym": symbol, "tsym": "USD", "limit": limit},
         timeout=10
     )
     resp.raise_for_status()
     return resp.json().get("Data", {}).get("Data", [])
+
+
+def get_btc_candles(limit=100):
+    return get_candles("BTC", limit)
+
+
+def get_eth_candles(limit=100):
+    return get_candles("ETH", limit)
 
 
 def get_order_book():
@@ -270,11 +278,130 @@ def generate_signal() -> dict:
     }
 
 
+def generate_eth_signal() -> dict:
+    """Generate signal for ETH using same indicators."""
+    candles = get_eth_candles(limit=100)
+    if not candles:
+        raise Exception("No ETH candle data")
+    sig = _generate_signal_from_candles(candles)
+    sig["asset"] = "ETH"
+    return sig
+
+
+def generate_signal() -> dict:
+    candles = get_btc_candles(limit=100)
+    if not candles:
+        raise Exception("No BTC candle data")
+    sig = _generate_signal_from_candles(candles)
+    sig["asset"] = "BTC"
+    return sig
+
+
+def _generate_signal_from_candles(candles: list) -> dict:
+    closes  = [c["close"] for c in candles]
+    current = round(closes[-1], 2)
+
+    rsi                      = calc_rsi(closes)
+    macd                     = calc_macd(closes)
+    bb_low, bb_mid, bb_high  = calc_bollinger(closes)
+    vwap                     = calc_vwap(candles)
+    momentum                 = calc_momentum(closes, 5)
+    vol_ratio, vol_trend     = calc_volume_trend(candles)
+    vol_spike, spike_ratio   = detect_volume_spike(candles)
+    candle_sig, candle_desc  = detect_candle_pattern(candles)
+    div_sig, div_desc        = detect_rsi_divergence(closes)
+    bid_vol, ask_vol         = get_order_book()
+    ob_ratio                 = round(bid_vol / ask_vol, 3) if bid_vol and ask_vol else None
+
+    score   = 0
+    reasons = []
+
+    if rsi < 33:
+        score += 2; reasons.append(f"RSI {rsi} → Oversold 🟢")
+    elif rsi > 67:
+        score -= 2; reasons.append(f"RSI {rsi} → Overbought 🔴")
+    else:
+        reasons.append(f"RSI {rsi} → Neutral ⚪")
+
+    if macd > 0:
+        score += 1; reasons.append(f"MACD {macd} → Bullish 🟢")
+    else:
+        score -= 1; reasons.append(f"MACD {macd} → Bearish 🔴")
+
+    if current > vwap:
+        score += 1; reasons.append(f"Price above VWAP (${vwap:,}) 🟢")
+    else:
+        score -= 1; reasons.append(f"Price below VWAP (${vwap:,}) 🔴")
+
+    if momentum > 0.05:
+        score += 1; reasons.append(f"Momentum +{momentum}% → Bullish 🟢")
+    elif momentum < -0.05:
+        score -= 1; reasons.append(f"Momentum {momentum}% → Bearish 🔴")
+    else:
+        reasons.append(f"Momentum {momentum}% → Flat ⚪")
+
+    if current < bb_low:
+        score += 1; reasons.append(f"Below BB lower (${bb_low:,}) → Bounce 🟢")
+    elif current > bb_high:
+        score -= 1; reasons.append(f"Above BB upper (${bb_high:,}) → Overextended 🔴")
+    else:
+        reasons.append(f"Inside BB bands (mid ${bb_mid:,}) ⚪")
+
+    if candle_sig == 1:
+        score += 1; reasons.append(candle_desc)
+    elif candle_sig == -1:
+        score -= 1; reasons.append(candle_desc)
+    else:
+        reasons.append(candle_desc)
+
+    if div_sig == 1:
+        score += 1; reasons.append(div_desc)
+    elif div_sig == -1:
+        score -= 1; reasons.append(div_desc)
+
+    if ob_ratio:
+        if ob_ratio > 1.3:
+            score += 1; reasons.append(f"Order book: {ob_ratio}x more bids 🟢")
+        elif ob_ratio < 0.7:
+            score -= 1; reasons.append(f"Order book: {ob_ratio}x more asks 🔴")
+        else:
+            reasons.append(f"Order book balanced ({ob_ratio}x) ⚪")
+
+    if vol_spike:
+        if score > 0:
+            score += 1; reasons.append(f"Volume spike {spike_ratio}x → Confirms UP 🟢")
+        elif score < 0:
+            score -= 1; reasons.append(f"Volume spike {spike_ratio}x → Confirms DOWN 🔴")
+
+    reasons.append(f"Volume trend: {vol_trend}")
+
+    max_score  = 9
+    confidence = round((score + max_score) / (max_score * 2) * 100, 1)
+    confidence = max(0, min(100, confidence))
+
+    if score >= 4:
+        direction, label = "up",   "🟢 BET UP"
+    elif score <= -4:
+        direction, label = "down", "🔴 BET DOWN"
+    else:
+        direction, label = None,   "⚪ HOLD"
+
+    return {
+        "price": current, "rsi": rsi, "macd": macd,
+        "vwap": vwap, "bb_low": bb_low, "bb_high": bb_high,
+        "momentum": momentum, "ob_ratio": ob_ratio,
+        "score": score, "confidence": confidence,
+        "direction": direction, "label": label,
+        "reasons": reasons,
+        "tradeable": confidence >= 71 and direction is not None,
+    }
+
+
 def format_signal(sig: dict) -> str:
     bar_filled = int(sig["confidence"] / 10)
     bar = "█" * bar_filled + "░" * (10 - bar_filled)
     lines = [
-        "📊 *BTC AI Signal*",
+        f"📊 *{sig.get('asset', 'BTC')} AI Signal*",
         "━━━━━━━━━━━━━━━━━━━━━━",
         f"💰 Price      : ${sig['price']:,}",
         f"📈 Signal     : {sig['label']}",

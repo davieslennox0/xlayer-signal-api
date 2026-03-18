@@ -83,7 +83,7 @@ def sign_and_send(private_key: str, to: str, data: str, value: int = 0) -> str:
     }
 
     signed = account.sign_transaction(tx)
-    raw_tx = signed.rawTransaction.hex()
+    raw_tx = signed.raw_transaction.hex()
     if not raw_tx.startswith("0x"):
         raw_tx = "0x" + raw_tx
 
@@ -91,11 +91,11 @@ def sign_and_send(private_key: str, to: str, data: str, value: int = 0) -> str:
     return tx_hash
 
 
-def get_btc_market_and_outcome(direction: str) -> dict:
+def get_market_and_outcome(direction: str, asset: str = "bitcoin") -> dict:
     """Get market ID and outcome ID from Myriad API."""
     resp = requests.get(
         f"{MYRIAD_API}/markets",
-        params={"keyword": "bitcoin", "state": "open",
+        params={"keyword": f"{asset} candles", "state": "open",
                 "sort": "volume", "order": "desc",
                 "network_id": 56, "limit": 20},
         timeout=10
@@ -155,7 +155,7 @@ def get_quote(market_id: int, network_id: int, outcome_id: int, amount: float) -
     return resp.json()
 
 
-def place_trade(private_key: str, direction: str, amount_usd: float) -> dict:
+def place_trade(private_key: str, direction: str, amount_usd: float, asset: str = "bitcoin") -> dict:
     """
     Full trade flow:
     1. Get market + quote from Myriad API
@@ -167,7 +167,7 @@ def place_trade(private_key: str, direction: str, amount_usd: float) -> dict:
     address = account.address
 
     # Step 1 — Get market and quote
-    market = get_btc_market_and_outcome(direction)
+    market = get_market_and_outcome(direction, asset)
     quote  = get_quote(
         market["market_id"], market["network_id"],
         market["outcome_id"], amount_usd

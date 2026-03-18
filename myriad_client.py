@@ -15,7 +15,7 @@ def headers():
     return {"x-api-key": MYRIAD_KEY} if MYRIAD_KEY else {}
 
 
-def get_btc_market():
+def get_btc_market(asset="bitcoin"):
     """Find most active open BTC UP/DOWN market."""
     resp = requests.get(
         f"{MYRIAD_API}/markets",

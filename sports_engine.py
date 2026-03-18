@@ -8,10 +8,29 @@ import requests
 MYRIAD_API = "https://api-v2.myriadprotocol.com"
 
 SPORTS_KEYWORDS = [
-    "football", "soccer", "basketball", "nba", "nfl", "premier league",
-    "champions league", "la liga", "bundesliga", "serie a", "ligue 1",
+    # Football/Soccer
+    "football", "soccer", "premier league", "champions league", "la liga",
+    "bundesliga", "serie a", "ligue 1", "eredivisie", "liga nos",
+    "world cup", "euro", "copa america", "afcon", "nations league",
+    "fa cup", "carabao", "ucl", "uel", "uecl", "mls", "npfl",
+    "manchester", "chelsea", "arsenal", "liverpool", "barcelona",
+    "real madrid", "psg", "juventus", "milan", "inter", "dortmund",
+    "bayern", "atletico", "napoli", "roma", "porto", "benfica",
+    # Basketball
+    "basketball", "nba", "euroleague", "fiba", "wnba",
+    "lakers", "celtics", "warriors", "bulls", "heat",
+    # American Football
+    "nfl", "super bowl", "touchdown",
+    # Tennis
+    "tennis", "wimbledon", "us open", "french open", "australian open",
+    "atp", "wta", "grand slam",
+    # Cricket
+    "cricket", "ipl", "test match", "odi", "t20",
+    # General
     "match", "game", "win", "score", "goal", "playoffs", "finals",
-    "tournament", "world cup", "euro", "copa"
+    "tournament", "semifinal", "quarterfinal", "knockout",
+    "championship", "league", "cup", "trophy", "title",
+    "vs", "versus", "beat", "defeat", "upset"
 ]
 
 
