@@ -36,7 +36,7 @@ BYPASS_CODE    = os.getenv("BYPASS_CODE", "SYKE0X")
 BYPASS_MAX     = int(os.getenv("BYPASS_MAX", "5"))
 MIN_DEPOSIT    = float(os.getenv("MIN_DEPOSIT", "5.0"))
 SIGNAL_THRESH  = float(os.getenv("SIGNAL_THRESH", "80.0"))
-BET_AMOUNT     = float(os.getenv("BET_AMOUNT", "5.0"))
+BET_AMOUNT     = float(os.getenv("BET_AMOUNT", "2.0"))
 WINNING_FEE    = 0.025
 SPORTS_MIN_BET = 5.0
 SPORTS_MAX_BET = 500.0
@@ -88,11 +88,13 @@ def main_menu_keyboard(owner=False):
 def settings_keyboard(user):
     btc_status   = "✅ ON" if user["btc_auto_trade"] else "❌ OFF"
     sport_status = "✅ ON" if user["sports_betting"] else "❌ OFF"
+    btc_amt      = user["btc_bet_amount"] if user["btc_bet_amount"] else 2.0
+    sport_amt    = user["sports_bet_amount"]
     return InlineKeyboardMarkup([
         [InlineKeyboardButton(f"₿ BTC Auto-trade: {btc_status}", callback_data="toggle_btc")],
+        [InlineKeyboardButton(f"₿ BTC Bet Amount: ${btc_amt:.0f}", callback_data="set_btc_amount")],
         [InlineKeyboardButton(f"⚽ Sports Betting: {sport_status}", callback_data="toggle_sports")],
-        [InlineKeyboardButton(f"💵 Sports Bet Amount: ${user['sports_bet_amount']:.0f}",
-                              callback_data="set_sport_amount")],
+        [InlineKeyboardButton(f"💵 Sports Bet Amount: ${sport_amt:.0f}", callback_data="set_sport_amount")],
         [InlineKeyboardButton("🔙 Back to Menu", callback_data="menu")],
     ])
 
@@ -458,6 +460,30 @@ async def ask_sport_amount_msg(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Enter a number:")
         return ASK_SPORT_AMOUNT
     return ConversationHandler.END
+
+
+async def ask_btc_amount_msg(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    uid = str(update.effective_user.id)
+    if not ctx.user_data.get("setting_btc_amount"):
+        return
+    try:
+        amount = float(update.message.text.strip())
+        if amount < 1:
+            await update.message.reply_text("❌ Minimum is $1. Enter again:")
+            return
+        if amount > 500:
+            await update.message.reply_text("❌ Maximum is $500. Enter again:")
+            return
+        db.update_user(uid, btc_bet_amount=amount)
+        ctx.user_data["setting_btc_amount"] = False
+        user = db.get_user(uid)
+        await update.message.reply_text(
+            f"✅ BTC bet amount set to *${amount:.0f}*",
+            parse_mode="Markdown",
+            reply_markup=settings_keyboard(user)
+        )
+    except ValueError:
+        await update.message.reply_text("❌ Enter a number:")
 
 
 # ── /help ─────────────────────────────────────────────────────────────────────
@@ -930,6 +956,12 @@ async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         )
         ctx.user_data["setting_sport_amount"] = True
 
+    elif data == "set_btc_amount":
+        await query.message.reply_text(
+            f"₿ Enter BTC bet amount ($1–$500):"
+        )
+        ctx.user_data["setting_btc_amount"] = True
+
     elif data == "deposit":
         await query.message.reply_text(
             f"📥 *Deposit*\n\n"
@@ -1232,6 +1264,8 @@ def main():
     app.add_handler(bypass_conv)
     app.add_handler(reg_conv)
     app.add_handler(CallbackQueryHandler(button_handler))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, ask_sport_amount_msg))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, ask_btc_amount_msg))
     app.add_handler(CommandHandler("menu",        menu))
     app.add_handler(CommandHandler("verify",      verify_deposit))
     app.add_handler(CommandHandler("mykey",       mykey))
@@ -1251,7 +1285,7 @@ def main():
     async def post_init(application):
         scheduler = AsyncIOScheduler(timezone="UTC")
         # BTC scan every hour
-        scheduler.add_job(lambda: asyncio.ensure_future(auto_trade(app)), 'interval', hours=1)
+        scheduler.add_job(lambda: asyncio.ensure_future(auto_trade(app)), 'interval', minutes=15)
         # Sports scan before major game times (17:45, 19:45, 20:45 UTC)
         scheduler.add_job(lambda: asyncio.ensure_future(sports_scan(app)), 'cron', hour=17, minute=45)
         scheduler.add_job(lambda: asyncio.ensure_future(sports_scan(app)), 'cron', hour=19, minute=45)
