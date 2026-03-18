@@ -10,7 +10,7 @@ import requests
 import os
 from cryptography.fernet import Fernet
 
-BSC_RPC = "https://rpc.ankr.com/bsc"
+BSC_RPC = "https://bsc-rpc.publicnode.com"
 USD1_ADDRESS = "0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d"
 MASTER_KEY   = os.getenv("MASTER_KEY")
 

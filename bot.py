@@ -1084,8 +1084,28 @@ async def auto_trade(app: Application):
 
     for user in users:
         uid = user["telegram_id"]
+
+        # Sync on-chain balance before trading
+        try:
+            onchain = wm.get_usd1_balance(user["wallet_address"])
+            if onchain > 0 and abs(onchain - user["balance"]) > 0.5:
+                db.update_user(uid, balance=onchain)
+                user = db.get_user(uid)
+                logger.info(f"Synced balance for {uid}: ${onchain:.4f}")
+        except Exception:
+            pass
+
         if user["balance"] < BET_AMOUNT:
+            try:
+                await app.bot.send_message(
+                    chat_id=uid,
+                    text=f"⚠️ Insufficient balance (${user['balance']:.2f}). Deposit more USD1 to continue trading.",
+                    parse_mode="Markdown"
+                )
+            except Exception:
+                pass
             continue
+
         try:
             pk     = wm.decrypt_key(user["wallet_key"])
             result = trader.place_trade(pk, sig["direction"], BET_AMOUNT, sig.get("asset", "bitcoin").lower())
@@ -1182,6 +1202,13 @@ async def auto_claim(app: Application):
                         logger.error(f"Fee error: {fe}")
 
                     db.add_balance(uid, user_payout)
+                    # Sync with on-chain after claim
+                    try:
+                        onchain = wm.get_usd1_balance(user["wallet_address"])
+                        if onchain > 0:
+                            db.update_user(uid, balance=onchain)
+                    except Exception:
+                        pass
 
                     conn = db.get_conn()
                     conn.execute(

@@ -10,9 +10,9 @@ from eth_account import Account
 from eth_account.messages import encode_defunct
 
 BSC_RPCS = [
-    "https://rpc.ankr.com/bsc",
     "https://bsc-rpc.publicnode.com",
-    "https://1rpc.io/bnb",
+    "https://bsc-rpc.publicnode.com",
+    
     "https://bsc.meowrpc.com",
 ]
 BSC_RPC = BSC_RPCS[0]
