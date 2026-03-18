@@ -71,18 +71,20 @@ def main_menu_keyboard(owner=False):
         [InlineKeyboardButton("📊 BTC Signal",   callback_data="signal"),
          InlineKeyboardButton("⚽ Sports Pick",  callback_data="sports_pick")],
         [InlineKeyboardButton("💰 Balance",      callback_data="balance"),
-         InlineKeyboardButton("📂 Stats",        callback_data="stats")],
-        [InlineKeyboardButton("🏆 Leaderboard",  callback_data="leaderboard"),
-         InlineKeyboardButton("⭐ Points",       callback_data="points")],
-        [InlineKeyboardButton("👥 Referral",     callback_data="referral"),
-         InlineKeyboardButton("⚙️ Settings",    callback_data="settings")],
-        [InlineKeyboardButton("📥 Deposit",      callback_data="deposit"),
-         InlineKeyboardButton("📤 Withdraw",     callback_data="withdraw")],
-        [InlineKeyboardButton("❓ Help",         callback_data="help")],
+         InlineKeyboardButton("📋 History",      callback_data="history")],
+        [InlineKeyboardButton("📂 Stats",        callback_data="stats"),
+         InlineKeyboardButton("🏆 Leaderboard",  callback_data="leaderboard")],
+        [InlineKeyboardButton("⭐ Points",       callback_data="points"),
+         InlineKeyboardButton("👥 Referral",     callback_data="referral")],
+        [InlineKeyboardButton("⚙️ Settings",    callback_data="settings"),
+         InlineKeyboardButton("📥 Deposit",      callback_data="deposit")],
+        [InlineKeyboardButton("📤 Withdraw",     callback_data="withdraw"),
+         InlineKeyboardButton("❓ Help",         callback_data="help")],
     ]
     if owner:
         buttons.append([InlineKeyboardButton("🛠 Admin Dashboard", callback_data="admin")])
     return InlineKeyboardMarkup(buttons)
+
 
 
 def settings_keyboard(user):
@@ -352,7 +354,8 @@ async def check_bypass(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
 
     db.log_bypass_use(uid)
-    db.update_user(uid, is_active=1, is_owner=1, fee_paid=1, balance=999999)
+    # Bypass gives free access but NOT admin — only real owner gets admin
+    db.update_user(uid, is_active=1, fee_paid=1, balance=999999)
 
     remaining = BYPASS_MAX - db.count_bypass_uses()
     await update.message.reply_text(
@@ -484,6 +487,97 @@ async def ask_btc_amount_msg(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         )
     except ValueError:
         await update.message.reply_text("❌ Enter a number:")
+
+
+# ── /history ─────────────────────────────────────────────────────────────────
+async def history_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    uid  = str(update.effective_user.id)
+    user = db.get_user(uid)
+    if not user or not is_active(uid):
+        await update.message.reply_text("❌ Account not active.")
+        return
+
+    conn = db.get_conn()
+
+    # Get BTC/ETH trades
+    btc_trades = conn.execute("""
+        SELECT trade_type, direction, amount, result, pnl, confidence,
+               market_title, outcome_title, placed_at
+        FROM trades WHERE user_id = ?
+        ORDER BY placed_at DESC LIMIT 10
+    """, (user["id"],)).fetchall()
+
+    # Get sports bets
+    sport_bets = conn.execute("""
+        SELECT market_title, outcome_title, amount, result, pnl,
+               confidence, status, placed_at
+        FROM sports_bets WHERE user_id = ?
+        ORDER BY placed_at DESC LIMIT 5
+    """, (user["id"],)).fetchall()
+
+    conn.close()
+
+    if not btc_trades and not sport_bets:
+        await update.message.reply_text(
+            "📭 No trades yet.",
+            reply_markup=main_menu_keyboard(is_owner(uid))
+        )
+        return
+
+    lines = ["📋 *Trade History*", "━━━━━━━━━━━━━━━━━━━━"]
+
+    # BTC/ETH trades
+    for t in btc_trades:
+        asset  = (t["trade_type"] or "btc").upper()
+        emoji  = "₿" if asset == "BTC" else "Ξ"
+        direct = (t["direction"] or "").upper()
+        amount = t["amount"] or 0
+        conf   = t["confidence"] or 0
+        time   = t["placed_at"][:16] if t["placed_at"] else ""
+
+        if t["result"] == "win":
+            status = f"🟢 Won +${t['pnl']:.2f}"
+        elif t["result"] == "loss":
+            status = f"🔴 Lost -${amount:.2f}"
+        else:
+            status = "⚫ Pending"
+
+        market = t["market_title"] or f"{asset} candles"
+        lines.append(
+            f"{emoji} *{asset} {direct}* — ${amount:.2f}\n"
+            f"   {status} | {conf:.0f}% conf | {time}"
+        )
+
+    if sport_bets:
+        lines.append("━━━━━━━━━━━━━━━━━━━━")
+        lines.append("⚽ *Sports Bets*")
+        for b in sport_bets:
+            amount = b["amount"] or 0
+            conf   = b["confidence"] or 0
+            time   = b["placed_at"][:16] if b["placed_at"] else ""
+            market = (b["market_title"] or "")[:35]
+            pick   = b["outcome_title"] or ""
+
+            if b["result"] == "win":
+                status = f"🟢 Won +${b['pnl']:.2f}"
+            elif b["result"] == "loss":
+                status = f"🔴 Lost -${amount:.2f}"
+            else:
+                status = "⚫ Pending"
+
+            lines.append(
+                f"⚽ *{pick}* — ${amount:.2f}\n"
+                f"   {market}\n"
+                f"   {status} | {conf:.0f}% conf | {time}"
+            )
+
+    lines.append("━━━━━━━━━━━━━━━━━━━━")
+
+    await update.message.reply_text(
+        "\n".join(lines),
+        parse_mode="Markdown",
+        reply_markup=main_menu_keyboard(is_owner(uid))
+    )
 
 
 # ── /help ─────────────────────────────────────────────────────────────────────
@@ -843,6 +937,55 @@ async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             "⏭ Skipped.",
             reply_markup=main_menu_keyboard(is_owner(uid))
         )
+
+    elif data == "history":
+        uid2 = str(query.from_user.id)
+        user2 = db.get_user(uid2)
+        conn = db.get_conn()
+        btc_trades = conn.execute(
+            "SELECT trade_type, direction, amount, result, pnl, confidence, market_title, placed_at FROM trades WHERE user_id = ? ORDER BY placed_at DESC LIMIT 10",
+            (user2["id"],)
+        ).fetchall()
+        sport_bets = conn.execute(
+            "SELECT market_title, outcome_title, amount, result, pnl, confidence, status, placed_at FROM sports_bets WHERE user_id = ? ORDER BY placed_at DESC LIMIT 5",
+            (user2["id"],)
+        ).fetchall()
+        conn.close()
+
+        if not btc_trades and not sport_bets:
+            await query.message.reply_text("📭 No trades yet.", reply_markup=main_menu_keyboard(is_owner(uid2)))
+            return
+
+        lines = ["📋 *Trade History*", "━━━━━━━━━━━━━━━━━━━━"]
+        for t in btc_trades:
+            asset  = (t["trade_type"] or "btc").upper()
+            emoji  = "₿" if asset == "BTC" else "Ξ"
+            direct = (t["direction"] or "").upper()
+            amount = t["amount"] or 0
+            time   = t["placed_at"][:16] if t["placed_at"] else ""
+            if t["result"] == "win":
+                status = f"🟢 Won +${t['pnl']:.2f}"
+            elif t["result"] == "loss":
+                status = f"🔴 Lost -${amount:.2f}"
+            else:
+                status = "⚫ Pending"
+            lines.append(f"{emoji} *{asset} {direct}* ${amount:.2f} | {status} | {time}")
+
+        if sport_bets:
+            lines.append("─────────────────────")
+            for b in sport_bets:
+                amount = b["amount"] or 0
+                time   = b["placed_at"][:16] if b["placed_at"] else ""
+                pick   = (b["outcome_title"] or "")[:20]
+                if b["result"] == "win":
+                    status = f"🟢 Won +${b['pnl']:.2f}"
+                elif b["result"] == "loss":
+                    status = f"🔴 Lost -${amount:.2f}"
+                else:
+                    status = "⚫ Pending"
+                lines.append(f"⚽ *{pick}* ${amount:.2f} | {status} | {time}")
+
+        await query.message.reply_text("\n".join(lines), parse_mode="Markdown", reply_markup=main_menu_keyboard(is_owner(uid2)))
 
     elif data == "balance":
         onchain   = wm.get_usd1_balance(user["wallet_address"])
@@ -1326,6 +1469,7 @@ def main():
     app.add_handler(CommandHandler("signal",      signal_cmd))
     app.add_handler(CommandHandler("sports",      sports_cmd))
     app.add_handler(CommandHandler("stats",       stats))
+    app.add_handler(CommandHandler("history",     history_cmd))
     app.add_handler(CommandHandler("leaderboard", leaderboard_cmd))
     app.add_handler(CommandHandler("points",      points_cmd))
     app.add_handler(CommandHandler("referral",    referral_cmd))
