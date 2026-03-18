@@ -1254,9 +1254,19 @@ async def auto_trade(app: Application):
             result = trader.place_trade(pk, sig["direction"], BET_AMOUNT, sig.get("asset", "bitcoin").lower())
             tx     = result.get("buy_tx", "pending")
             db.deduct_balance(uid, BET_AMOUNT)
+            # Sync on-chain balance after trade
+            try:
+                onchain = wm.get_usd1_balance(user["wallet_address"])
+                if onchain >= 0:
+                    db.update_user(uid, balance=onchain)
+            except Exception:
+                pass
             db.log_trade(
                 user["id"], sig["direction"], BET_AMOUNT,
-                sig["confidence"], 0, 0, tx, "btc"
+                sig["confidence"], result.get("market_id", 0),
+                result.get("outcome_id", 0), tx,
+                sig.get("asset", "btc").lower(),
+                result.get("market", ""), result.get("outcome", "")
             )
             await app.bot.send_message(
                 chat_id=uid,
@@ -1482,15 +1492,20 @@ def main():
     async def post_init(application):
         scheduler = AsyncIOScheduler(timezone="UTC")
         # BTC scan every hour
-        scheduler.add_job(lambda: asyncio.ensure_future(auto_trade(app)), 'interval', minutes=15)
+        loop = asyncio.get_event_loop()
+
+        def run(coro):
+            asyncio.run_coroutine_threadsafe(coro, loop)
+
+        scheduler.add_job(lambda: run(auto_trade(app)), 'interval', minutes=15)
         # Sports scan before major game times (17:45, 19:45, 20:45 UTC)
-        scheduler.add_job(lambda: asyncio.ensure_future(sports_scan(app)), 'cron', hour=17, minute=45)
-        scheduler.add_job(lambda: asyncio.ensure_future(sports_scan(app)), 'cron', hour=19, minute=45)
-        scheduler.add_job(lambda: asyncio.ensure_future(sports_scan(app)), 'cron', hour=20, minute=45)
+        scheduler.add_job(lambda: run(sports_scan(app)), 'cron', hour=17, minute=45)
+        scheduler.add_job(lambda: run(sports_scan(app)), 'cron', hour=19, minute=45)
+        scheduler.add_job(lambda: run(sports_scan(app)), 'cron', hour=20, minute=45)
         # Claim every 10 minutes
-        scheduler.add_job(lambda: asyncio.ensure_future(auto_claim(app)), 'interval', minutes=10)
+        scheduler.add_job(lambda: run(auto_claim(app)), 'interval', minutes=10)
         # Daily report
-        scheduler.add_job(lambda: asyncio.ensure_future(daily_report(app)), 'cron', hour=23, minute=0)
+        scheduler.add_job(lambda: run(daily_report(app)), 'cron', hour=23, minute=0)
         scheduler.start()
         logger.info("Bot started...")
 

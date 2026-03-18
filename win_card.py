@@ -1,160 +1,112 @@
-"""
-win_card.py — Generate winner notification images
-Dark theme PNG cards sent when a user wins a bet
-"""
-
-import io
-import math
+import io, math, random
 from datetime import datetime
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
-try:
-    from PIL import Image, ImageDraw, ImageFont
-    PIL_AVAILABLE = True
-except ImportError:
-    PIL_AVAILABLE = False
-
-
-def generate_win_card(
-    username: str,
-    market_title: str,
-    outcome: str,
-    stake: float,
-    payout: float,
-    profit: float,
-    roi: float,
-    rank: int = None,
-    bet_type: str = "BTC"
-) -> bytes:
-    """
-    Generate a dark-themed winner card image.
-    Returns PNG bytes.
-    """
-    if not PIL_AVAILABLE:
-        return None
-
-    W, H = 800, 500
-    img  = Image.new("RGB", (W, H), color=(8, 8, 20))
+def generate_win_card(username, market_title, outcome, stake, payout, profit, roi, rank=None, bet_type="BTC"):
+    W, H = 420, 520
+    img  = Image.new("RGB", (W, H), color=(6, 8, 14))
     draw = ImageDraw.Draw(img)
 
-    # ── Background effects ────────────────────────────────────────────────────
-    # Gradient-like dark overlay
     for y in range(H):
-        alpha = int(20 * (1 - y / H))
-        draw.line([(0, y), (W, y)], fill=(0, 30, alpha))
+        t = y / H
+        r = int(6 * (1-t)); g = int(18 * (1-t) * 0.6); b = int(22 * (1-t))
+        draw.line([(0, y), (W, y)], fill=(r, g, b))
 
-    # Grid lines
-    for x in range(0, W, 60):
-        draw.line([(x, 0), (x, H)], fill=(15, 15, 35), width=1)
-    for y in range(0, H, 60):
-        draw.line([(0, y), (W, y)], fill=(15, 15, 35), width=1)
+    glow = Image.new("RGB", (W, H), (0,0,0))
+    gd   = ImageDraw.Draw(glow)
+    cx, cy = W//4, H//2
+    for r in range(220, 0, -10):
+        v = int(9 * (1 - r/220))
+        col = (0, v*5, v*3) if bet_type=="BTC" else (0, v*2, v*6)
+        gd.ellipse([(cx-r, cy-r), (cx+r, cy+r)], fill=col)
+    glow = glow.filter(ImageFilter.GaussianBlur(45))
+    img  = Image.blend(img, glow, 0.85)
+    draw = ImageDraw.Draw(img)
 
-    # Glow circle in background
-    for r in range(180, 80, -10):
-        opacity = int(15 * (1 - r / 180))
-        draw.ellipse(
-            [(W//2 - r, H//2 - r), (W//2 + r, H//2 + r)],
-            outline=(0, opacity * 3, opacity)
-        )
-
-    # ── Border ────────────────────────────────────────────────────────────────
-    draw.rectangle([(2, 2), (W-3, H-3)], outline=(0, 255, 136), width=2)
-    draw.rectangle([(6, 6), (W-7, H-7)], outline=(247, 147, 26), width=1)
-
-    # ── Fonts (use default if custom not available) ───────────────────────────
     try:
-        font_large  = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 48)
-        font_medium = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 28)
-        font_small  = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 20)
-        font_tiny   = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 16)
-    except Exception:
-        font_large  = ImageFont.load_default()
-        font_medium = font_large
-        font_small  = font_large
-        font_tiny   = font_large
+        f_sym  = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 110)
+        f_xl   = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 48)
+        f_lg   = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 26)
+        f_md   = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 19)
+        f_sm   = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 15)
+        f_xs   = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 12)
+    except:
+        f_sym=f_xl=f_lg=f_md=f_sm=f_xs=ImageFont.load_default()
 
-    # ── Header ────────────────────────────────────────────────────────────────
-    draw.text((W//2, 35), "🏆 WINNER!", font=font_large,
-              fill=(0, 255, 136), anchor="mm")
+    NEON=(0,255,110); GREEN=(0,210,85); WHITE=(230,238,255)
+    GOLD=(255,190,0); GREY=(100,112,138); DIM=(40,52,68)
 
-    # Bet type badge
-    badge_color = (247, 147, 26) if bet_type == "BTC" else (0, 120, 255)
-    badge_text  = f"{'₿ BTC' if bet_type == 'BTC' else '⚽ SPORTS'} PREDICTION"
-    draw.rounded_rectangle([(W//2 - 120, 70), (W//2 + 120, 100)],
-                           radius=12, fill=badge_color)
-    draw.text((W//2, 85), badge_text, font=font_tiny,
-              fill=(0, 0, 0), anchor="mm")
+    sym = "₿" if bet_type == "BTC" else "Ξ"
+    sym_color = (0, 180, 80) if bet_type == "BTC" else (60, 130, 220)
 
-    # ── User ──────────────────────────────────────────────────────────────────
-    draw.text((W//2, 130), f"@{username}", font=font_medium,
-              fill=(200, 200, 255), anchor="mm")
+    for r in range(90, 20, -18):
+        alpha = int(40 * (1 - r/90))
+        draw.ellipse([(cx-r, cy-r-30), (cx+r, cy+r-30)], outline=sym_color, width=1)
 
-    # ── Market ────────────────────────────────────────────────────────────────
-    market_short = market_title[:45] + "..." if len(market_title) > 45 else market_title
-    draw.text((W//2, 168), market_short, font=font_small,
-              fill=(150, 150, 200), anchor="mm")
+    bbox = draw.textbbox((0,0), sym, font=f_sym)
+    sw = bbox[2]-bbox[0]; sh = bbox[3]-bbox[1]
+    for offset in [4, 3, 2, 1]:
+        alpha_col = tuple(int(c * 0.3) for c in sym_color)
+        draw.text((cx-sw//2+offset, cy-sh//2-30+offset), sym, font=f_sym, fill=alpha_col)
+    draw.text((cx-sw//2, cy-sh//2-30), sym, font=f_sym, fill=sym_color)
 
-    draw.text((W//2, 198), f"✅ {outcome}", font=font_small,
-              fill=(0, 255, 136), anchor="mm")
+    asset_name = "BITCOIN" if bet_type == "BTC" else "ETHEREUM"
+    draw.text((cx, cy+80), asset_name, font=f_xs, fill=GREY, anchor="mm")
+    multiplier = round(payout/stake, 2) if stake > 0 else 1.0
+    draw.text((cx, cy+100), f"{multiplier}x", font=f_lg, fill=NEON, anchor="mm")
 
-    # ── Divider ───────────────────────────────────────────────────────────────
-    draw.line([(60, 220), (W-60, 220)], fill=(0, 255, 136), width=1)
+    draw.line([(W//2, 20), (W//2, H-20)], fill=(20, 30, 44), width=1)
 
-    # ── Stats grid ───────────────────────────────────────────────────────────
-    stats = [
-        ("STAKE",   f"${stake:.2f}",   (150, 150, 200)),
-        ("PAYOUT",  f"${payout:.2f}",  (0, 255, 136)),
-        ("PROFIT",  f"+${profit:.2f}", (0, 255, 136)),
-        ("ROI",     f"+{roi:.1f}%",    (247, 147, 26)),
-    ]
+    rx = W//2 + 14
+    draw.text((W-12, 16), "TREND PILOT", font=f_xs, fill=GREY, anchor="ra")
+    draw.line([(rx, 30), (W-12, 30)], fill=(20, 30, 44), width=1)
+    draw.text((rx, 40), f"@{username}", font=f_md, fill=WHITE)
+    pair = "BTC/USD" if bet_type == "BTC" else "ETH/USD"
+    draw.text((rx, 66), pair, font=f_sm, fill=GREY)
 
-    col_w = (W - 120) // 4
-    for i, (label, value, color) in enumerate(stats):
-        x = 60 + col_w * i + col_w // 2
+    roi_text = f"+{roi:.2f}%"
+    for offset in [3, 2, 1]:
+        draw.text((rx+offset, 88+offset), roi_text, font=f_xl, fill=(0, 80, 35))
+    draw.text((rx, 88), roi_text, font=f_xl, fill=NEON)
 
-        # Box
-        draw.rounded_rectangle(
-            [(60 + col_w * i + 8, 235), (60 + col_w * (i+1) - 8, 330)],
-            radius=10, fill=(15, 20, 40), outline=(30, 40, 80)
-        )
+    mkt_short = market_title.replace("Bitcoin candles from ", "").replace("Ethereum candles from ", "")[:24]
+    draw.text((rx, 148), f"⏱  {mkt_short}", font=f_xs, fill=GREY)
+    draw.line([(rx, 168), (W-12, 168)], fill=(18, 26, 38), width=1)
 
-        draw.text((x, 268), value, font=font_medium, fill=color, anchor="mm")
-        draw.text((x, 310), label, font=font_tiny, fill=(100, 100, 150), anchor="mm")
+    draw.text((rx, 178), "Invested", font=f_xs, fill=GREY)
+    draw.text((W-12, 178), "Current Gain", font=f_xs, fill=GREY, anchor="ra")
+    draw.text((rx, 196), f"${stake:.2f}", font=f_md, fill=WHITE)
+    draw.text((W-12, 196), f"${payout:.2f}", font=f_md, fill=NEON, anchor="ra")
+    draw.line([(rx, 225), (W-12, 225)], fill=(18, 26, 38), width=1)
 
-    # ── Rank ─────────────────────────────────────────────────────────────────
+    draw.text((rx, 233), "Profit", font=f_xs, fill=GREY)
+    draw.text((W-12, 233), "ROI", font=f_xs, fill=GREY, anchor="ra")
+    draw.text((rx, 251), f"+${profit:.2f}", font=f_md, fill=NEON)
+    draw.text((W-12, 251), f"+{roi:.1f}%", font=f_md, fill=NEON, anchor="ra")
+    draw.line([(rx, 280), (W-12, 280)], fill=(18, 26, 38), width=1)
+
+    draw.text((rx, 289), f"✅  {outcome}", font=f_xs, fill=GREEN)
     if rank:
-        rank_text = f"🏅 Leaderboard Rank #{rank}"
-        draw.text((W//2, 360), rank_text, font=font_small,
-                  fill=(247, 147, 26), anchor="mm")
+        medals = {1:"🥇",2:"🥈",3:"🥉"}
+        m = medals.get(rank,"🏅")
+        draw.text((rx, 310), f"{m} Rank #{rank}", font=f_xs, fill=GOLD)
 
-    # ── Divider ───────────────────────────────────────────────────────────────
-    draw.line([(60, 385), (W-60, 385)], fill=(30, 30, 60), width=1)
+    qx, qy, qs = W-58, H-68, 46
+    draw.rectangle([(qx, qy), (qx+qs, qy+qs)], fill=(10,14,22), outline=DIM)
+    cells = 5; cs = qs // cells
+    random.seed(99)
+    for row in range(cells):
+        for col in range(cells):
+            if random.random() > 0.45:
+                draw.rectangle([(qx+2+col*cs, qy+2+row*cs),
+                                (qx+2+col*cs+cs-2, qy+2+row*cs+cs-2)], fill=DIM)
+    draw.text((qx+qs//2, qy+qs+8), "SCAN", font=f_xs, fill=DIM, anchor="ma")
 
-    # ── Footer ────────────────────────────────────────────────────────────────
-    draw.text((W//2, 415), "Trend Pilot — AI Trading Bot",
-              font=font_small, fill=(80, 80, 120), anchor="mm")
-    draw.text((W//2, 445), "t.me/pilotrend_bot",
-              font=font_small, fill=(0, 200, 100), anchor="mm")
+    draw.text((rx, H-52), f"@{username}", font=f_xs, fill=GREY)
+    draw.text((rx, H-36), "t.me/pilotrend_bot", font=f_xs, fill=GREEN)
+    draw.rectangle([(0, 0), (W-1, H-1)], outline=(20, 30, 44), width=1)
+    draw.rectangle([(0, 0), (W, 2)], fill=NEON)
 
-    ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-    draw.text((W//2, 475), ts, font=font_tiny, fill=(50, 50, 80), anchor="mm")
-
-    # ── Corner accents ────────────────────────────────────────────────────────
-    accent = (0, 255, 136)
-    size   = 20
-    # Top-left
-    draw.line([(15, 15), (15, 15+size)], fill=accent, width=2)
-    draw.line([(15, 15), (15+size, 15)], fill=accent, width=2)
-    # Top-right
-    draw.line([(W-15, 15), (W-15, 15+size)], fill=accent, width=2)
-    draw.line([(W-15, 15), (W-15-size, 15)], fill=accent, width=2)
-    # Bottom-left
-    draw.line([(15, H-15), (15, H-15-size)], fill=accent, width=2)
-    draw.line([(15, H-15), (15+size, H-15)], fill=accent, width=2)
-    # Bottom-right
-    draw.line([(W-15, H-15), (W-15, H-15-size)], fill=accent, width=2)
-    draw.line([(W-15, H-15), (W-15-size, H-15)], fill=accent, width=2)
-
-    # ── Export ────────────────────────────────────────────────────────────────
     buf = io.BytesIO()
     img.save(buf, format="PNG", optimize=True)
     buf.seek(0)
