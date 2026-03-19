@@ -446,11 +446,17 @@ def count_bypass_uses():
     return count
 
 
-def log_bypass_use(telegram_id: str):
+def log_bypass_use(telegram_id: str, bypass_code: str = ""):
     conn = get_conn()
-    conn.execute(
-        "INSERT INTO bypass_uses (telegram_id) VALUES (?)", (str(telegram_id),)
-    )
+    try:
+        conn.execute(
+            "INSERT INTO bypass_uses (telegram_id, bypass_code) VALUES (?, ?)",
+            (str(telegram_id), bypass_code)
+        )
+    except Exception:
+        conn.execute(
+            "INSERT INTO bypass_uses (telegram_id) VALUES (?)", (str(telegram_id),)
+        )
     conn.commit()
     conn.close()
 

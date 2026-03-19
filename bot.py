@@ -33,8 +33,10 @@ logger = logging.getLogger(__name__)
 # ── Config ────────────────────────────────────────────────────────────────────
 TG_TOKEN       = os.getenv("TG_TOKEN")
 OWNER_EVM      = os.getenv("OWNER_EVM", "0x95FB94763D57f8416A524091E641a9D26741cB31")
-BYPASS_CODE    = os.getenv("BYPASS_CODE", "SYKE0X")
+BYPASS_CODE    = os.getenv("BYPASS_CODE", "FLORK")
 BYPASS_MAX     = int(os.getenv("BYPASS_MAX", "5"))
+BYPASS_CODE2   = os.getenv("BYPASS_CODE2", "RHENA")
+BYPASS_MAX2    = int(os.getenv("BYPASS_MAX2", "10"))
 MIN_DEPOSIT    = float(os.getenv("MIN_DEPOSIT", "5.0"))
 SIGNAL_THRESH  = float(os.getenv("SIGNAL_THRESH", "80.0"))
 BET_AMOUNT     = float(os.getenv("BET_AMOUNT", "2.0"))
@@ -148,10 +150,11 @@ async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"✅ 2.5% fee on winnings only\n"
         f"━━━━━━━━━━━━━━━━━━━━\n\n"
         f"*What you need:*\n"
-        f"1️⃣ $5 USD1 — one-time access fee\n"
+        f"1️⃣ $2 USD1 — first month subscription\n"
         f"2️⃣ $5+ USD1 — trading capital\n"
         f"3️⃣ ~0.002 BNB — gas fee\n\n"
-        f"All on *Binance Smart Chain (BSC)*",
+        f"All on *Binance Smart Chain (BSC)*\n\n"
+        f"_$2/month billed on the 28th_",
         parse_mode="Markdown",
         reply_markup=welcome_keyboard()
     )
@@ -226,8 +229,8 @@ async def ask_email(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"• Import to MetaMask to access funds\n"
         f"• Use /mykey anytime to retrieve it\n"
         f"━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"*Step 1 of 2 — Access Fee*\n\n"
-        f"Send *$5.00 USD1* to owner wallet on BSC:\n\n"
+        f"*Subscription Payment*\n\n"
+        f"Send *$2.00 USD1* to activate your account:\n\n"
         f"`{OWNER_EVM}`\n\n"
         f"Once sent, paste the *transaction hash* here.",
         parse_mode="Markdown"
@@ -249,7 +252,7 @@ async def ask_fee(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return ASK_FEE
 
     await update.message.reply_text("⏳ Verifying access fee...")
-    result = wm.verify_tx_payment(tx_hash, OWNER_EVM, 5.0)
+    result = wm.verify_tx_payment(tx_hash, OWNER_EVM, 2.0)
 
     if not result["valid"]:
         await update.message.reply_text(
@@ -258,8 +261,9 @@ async def ask_fee(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         )
         return ASK_FEE
 
-    db.log_deposit(user["id"], tx_hash, result["amount"], "access_fee")
-    db.update_user(uid, fee_paid=1)
+    sub_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    db.log_deposit(user["id"], tx_hash, result["amount"], "subscription")
+    db.update_user(uid, fee_paid=1, subscription_date=sub_date, is_suspended=0)
 
     # Referral points
     if user["referred_by"]:
@@ -269,8 +273,8 @@ async def ask_fee(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             db.log_referral(referrer["id"], user["id"])
 
     await update.message.reply_text(
-        f"✅ *Access fee confirmed!* ${result['amount']:.2f} USD1\n\n"
-        f"*Step 2 of 2 — Fund Your Trading Wallet*\n\n"
+        f"✅ *Subscription activated!* ${result['amount']:.2f} USD1\n\n"
+        f"*Fund Your Trading Wallet*\n\n"
         f"Send trading capital to YOUR wallet:\n\n"
         f"`{user['wallet_address']}`\n\n"
         f"• Minimum: *$5 USD1*\n"
@@ -347,9 +351,20 @@ async def check_bypass(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Bypass limit reached.")
         return ConversationHandler.END
 
-    if code != BYPASS_CODE:
+    if code != BYPASS_CODE and code != BYPASS_CODE2:
         await update.message.reply_text("❌ Wrong code.")
         return ConversationHandler.END
+
+    # Check limit for each code separately
+    if code == BYPASS_CODE2:
+        conn_b = db.get_conn()
+        code2_uses = conn_b.execute(
+            "SELECT COUNT(*) FROM bypass_uses WHERE bypass_code = ?", ("RHENA",)
+        ).fetchone()[0]
+        conn_b.close()
+        if code2_uses >= BYPASS_MAX2:
+            await update.message.reply_text("❌ This bypass code has reached its limit.")
+            return ConversationHandler.END
 
     conn = db.get_conn()
     already = conn.execute("SELECT id FROM bypass_uses WHERE telegram_id = ?", (uid,)).fetchone()
@@ -358,15 +373,14 @@ async def check_bypass(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Already used bypass.")
         return ConversationHandler.END
 
-    db.log_bypass_use(uid)
-    # Bypass gives free access but NOT admin — only real owner gets admin
-    db.update_user(uid, is_active=1, fee_paid=1, balance=999999)
+    db.log_bypass_use(uid, code)
+    db.update_user(uid, is_active=1, fee_paid=1, balance=0)
 
     remaining = BYPASS_MAX - db.count_bypass_uses()
     await update.message.reply_text(
         f"✅ *Owner bypass!* Remaining: {remaining}/{BYPASS_MAX}",
         parse_mode="Markdown",
-        reply_markup=main_menu_keyboard(True)
+        reply_markup=main_menu_keyboard(False)
     )
     return ConversationHandler.END
 
@@ -925,8 +939,7 @@ async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if db.count_bypass_uses() >= BYPASS_MAX:
             await query.message.reply_text("❌ Bypass limit reached.")
             return
-        await query.message.reply_text("🔑 Enter bypass code:")
-        ctx.user_data["awaiting_bypass"] = True
+        await query.message.reply_text("🔑 Use /bypass command and enter your code:")
         return
 
     if data == "menu":
@@ -1347,6 +1360,10 @@ async def auto_trade(app: Application):
     for user in users:
         uid = user["telegram_id"]
 
+        # Skip suspended users
+        if user["is_suspended"]:
+            continue
+
         # Sync on-chain balance before trading
         try:
             onchain = wm.get_usd1_balance(user["wallet_address"])
@@ -1481,11 +1498,24 @@ async def sniper_scan(app: Application):
         if user["balance"] < bet:
             continue
 
+        # Skip suspended users
+        if user["is_suspended"]:
+            continue
+
         # One trade per 5-minute market window per user (across ALL assets)
         last_window = _last_sniper_trade.get(uid, "")
         if last_window == window:
             logger.info(f"Sniper already traded this window ({window}) for {uid} — skipping")
             continue
+
+        # Verify real on-chain balance before trading
+        try:
+            onchain = wm.get_usd1_balance(user["wallet_address"])
+            if onchain < bet:
+                logger.info(f"Insufficient on-chain balance for {uid}: ${onchain:.4f}")
+                continue
+        except Exception:
+            pass
 
         try:
             pk     = wm.decrypt_key(user["wallet_key"])
@@ -1616,6 +1646,110 @@ async def auto_claim(app: Application):
             logger.error(f"Auto-claim error {uid}: {e}")
 
 
+# ── Subscription Manager ─────────────────────────────────────────────────────
+async def subscription_warning(app: Application):
+    """Send warning on 25th — top up by 28th."""
+    users = db.get_all_active_users()
+    for user in users:
+        if user["is_owner"]:
+            continue
+        uid = user["telegram_id"]
+        try:
+            await app.bot.send_message(
+                chat_id=uid,
+                text=(
+                    f"⚠️ *Subscription Reminder*\n\n"
+                    f"Your monthly subscription of *$2 USD1* is due on the *28th*.\n\n"
+                    f"Make sure your balance has at least $2 USD1 or top up before the 28th "
+                    f"to avoid service interruption.\n\n"
+                    f"Current balance: *${user['balance']:.2f} USD1*"
+                ),
+                parse_mode="Markdown"
+            )
+        except Exception as e:
+            logger.error(f"Warning error {uid}: {e}")
+
+
+async def subscription_deduct(app: Application):
+    """Deduct $2 on 28th — suspend if insufficient."""
+    users = db.get_all_active_users()
+    for user in users:
+        if user["is_owner"]:
+            continue
+        uid = user["telegram_id"]
+        try:
+            onchain = wm.get_usd1_balance(user["wallet_address"])
+
+            if onchain >= 2.0:
+                # Deduct from internal balance
+                db.deduct_balance(uid, 2.0)
+                db.update_user(uid, is_suspended=0)
+
+                # Send $2 to owner on-chain
+                try:
+                    pk = wm.decrypt_key(user["wallet_key"])
+                    trader.sign_and_send(
+                        pk, trader.USD1_ADDRESS,
+                        trader.build_transfer_data(OWNER_EVM, int(2.0 * 10**18))
+                    )
+                except Exception as fe:
+                    logger.error(f"Sub payment error {uid}: {fe}")
+
+                await app.bot.send_message(
+                    chat_id=uid,
+                    text=(
+                        "✅ *Subscription Renewed!*\n\n"
+                        "$2.00 USD1 deducted for next month.\n"
+                        f"Balance: *${db.get_user(uid)['balance']:.2f} USD1*\n\n"
+                        "Your bot continues trading. 🚀"
+                    ),
+                    parse_mode="Markdown"
+                )
+            else:
+                db.update_user(uid, is_suspended=1)
+                await app.bot.send_message(
+                    chat_id=uid,
+                    text=(
+                        "🚫 *Service Suspended*\n\n"
+                        "Insufficient balance for monthly subscription ($2 USD1).\n\n"
+                        "Your bot has been paused. To reactivate:\n"
+                        "1. Deposit $2+ USD1 to your wallet\n"
+                        "2. Use /verify <tx_hash>\n\n"
+                        "All your positions and history are safe."
+                    ),
+                    parse_mode="Markdown"
+                )
+        except Exception as e:
+            logger.error(f"Sub deduct error {uid}: {e}")
+
+
+async def check_reactivation(app: Application):
+    """Auto-reactivate suspended users who topped up."""
+    conn = db.get_conn()
+    suspended = conn.execute(
+        "SELECT * FROM users WHERE is_suspended = 1 AND is_active = 1"
+    ).fetchall()
+    conn.close()
+
+    for user in suspended:
+        uid = user["telegram_id"]
+        try:
+            onchain = wm.get_usd1_balance(user["wallet_address"])
+            if onchain >= 2.0:
+                db.update_user(uid, is_suspended=0, balance=onchain)
+                await app.bot.send_message(
+                    chat_id=uid,
+                    text=(
+                        "✅ *Service Reactivated!*\n\n"
+                        f"Your balance is now ${onchain:.2f} USD1.\n"
+                        "Bot is trading again. 🚀"
+                    ),
+                    parse_mode="Markdown"
+                )
+        except Exception as e:
+            logger.error(f"Reactivation error {uid}: {e}")
+
+
 # ── Daily Report ──────────────────────────────────────────────────────────────
 async def daily_report(app: Application):
     users = db.get_all_active_users()
@@ -1718,6 +1852,9 @@ def main():
 
         scheduler.add_job(lambda: run(auto_trade(app)), 'interval', minutes=5)
         scheduler.add_job(lambda: run(sniper_scan(app)), 'interval', minutes=1)
+        scheduler.add_job(lambda: run(check_reactivation(app)), 'interval', hours=1)
+        scheduler.add_job(lambda: run(subscription_warning(app)), 'cron', day=25, hour=9, minute=0)
+        scheduler.add_job(lambda: run(subscription_deduct(app)), 'cron', day=28, hour=0, minute=0)
         scheduler.add_job(lambda: run(sports_scan(app)), 'cron', hour=17, minute=45)
         scheduler.add_job(lambda: run(sports_scan(app)), 'cron', hour=19, minute=45)
         scheduler.add_job(lambda: run(sports_scan(app)), 'cron', hour=20, minute=45)
