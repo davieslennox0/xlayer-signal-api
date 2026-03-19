@@ -60,7 +60,10 @@ def get_recent_trades(symbol="BTCUSDT", limit=50):
             params={"symbol": symbol, "limit": limit},
             timeout=6
         )
-        return resp.json()
+        data = resp.json()
+        if isinstance(data, list):
+            return data
+        return []
     except Exception:
         return []
 
