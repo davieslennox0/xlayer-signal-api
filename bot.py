@@ -1580,12 +1580,22 @@ async def auto_claim(app: Application):
                     conn.close()
 
                     # Send win card
+                    # Get original stake from trade log
+                    conn_s = db.get_conn()
+                    trade_row = conn_s.execute(
+                        "SELECT amount, trade_type FROM trades WHERE user_id=? AND market_id=? ORDER BY placed_at DESC LIMIT 1",
+                        (user["id"], pos["marketId"])
+                    ).fetchone()
+                    conn_s.close()
+                    orig_stake = trade_row["amount"] if trade_row else round(payout / (1 + roi/100), 2)
+                    asset_type = (trade_row["trade_type"] or "btc").upper() if trade_row else "BTC"
+
                     await send_win_card(
                         app, uid,
                         user["telegram_name"] or "Trader",
                         pos["marketTitle"], pos["outcomeTitle"],
-                        pos.get("shares", 0) * pos.get("price", 1),
-                        payout, profit, roi, rank, "BTC"
+                        orig_stake,
+                        payout, profit, roi, rank, asset_type
                     )
 
                     await app.bot.send_message(
