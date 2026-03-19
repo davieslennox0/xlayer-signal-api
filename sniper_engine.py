@@ -253,9 +253,24 @@ def detect_tape_momentum(asset="BTC", lookback=50):
 
 # ── Main Sniper Signal ────────────────────────────────────────────────────────
 def generate_sniper_signal(asset="BTC") -> dict:
+    from datetime import datetime, timezone
     score    = 0
     triggers = []
     reasons  = []
+
+    # Session-aware threshold
+    hour = datetime.now(timezone.utc).hour
+    # London open (06:00-09:00 UTC) — volatile, require stronger signal
+    if 6 <= hour < 9:
+        min_score = 3
+        reasons.append("⚠️ London open session — higher threshold (3+)")
+    # NY open (13:00-16:00 UTC) — also volatile
+    elif 13 <= hour < 16:
+        min_score = 3
+        reasons.append("⚠️ NY open session — higher threshold (3+)")
+    # Asian session + off hours — normal sensitivity
+    else:
+        min_score = 1
 
     wall_s, wall_d = detect_order_book_wall(asset)
     if wall_s != 0:
@@ -281,9 +296,19 @@ def generate_sniper_signal(asset="BTC") -> dict:
     confidence = round((score + max_score) / (max_score * 2) * 100, 1)
     confidence = max(0, min(100, confidence))
 
-    if score >= 2:
+    # Session-aware threshold
+    from datetime import datetime, timezone
+    hour = datetime.now(timezone.utc).hour
+    if 6 <= hour < 9 or 13 <= hour < 16:
+        # London/NY open — require stronger signal
+        min_score = 3
+        reasons.append(f"⚠️ Volatile session (hour {hour} UTC) — threshold +{min_score}")
+    else:
+        min_score = 2
+
+    if score >= min_score:
         direction, label = "up",   "🟢 SNIPE UP"
-    elif score <= -2:
+    elif score <= -min_score:
         direction, label = "down", "🔴 SNIPE DOWN"
     else:
         direction, label = None,   "⚪ NO SNIPE"
