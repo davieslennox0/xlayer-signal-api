@@ -53,25 +53,33 @@ def rpc_call(method: str, params: list):
 
 def get_open_market(asset: str = "bitcoin") -> dict:
     """Find the most current open candle market for given asset."""
-    resp = requests.get(
-        f"{MYRIAD_API}/markets",
-        params={
-            "keyword": f"{asset} candles",
-            "state": "open",
-            "network_id": 56,
-            "sort": "volume",
-            "order": "desc",
-            "limit": 10
-        },
-        timeout=10
-    )
-    resp.raise_for_status()
-    markets = resp.json().get("data", [])
+    # Try with "candles" keyword first
+    # Map asset shorthand to full name
+    asset_name = {"bitcoin": "bitcoin", "btc": "bitcoin", "eth": "ethereum", "ethereum": "ethereum"}.get(asset.lower(), asset)
+    for keyword in [f"{asset_name} candles", asset_name]:
+        resp = requests.get(
+            f"{MYRIAD_API}/markets",
+            params={
+                "keyword": keyword,
+                "state": "open",
+                "network_id": 56,
+                "sort": "volume",
+                "order": "desc",
+                "limit": 20
+            },
+            timeout=10
+        )
+        resp.raise_for_status()
+        markets = resp.json().get("data", [])
 
-    for m in markets:
-        outcomes = m.get("outcomes", [])
-        if len(outcomes) >= 2:
-            return m
+        for m in markets:
+            title    = m.get("title", "").lower()
+            outcomes = m.get("outcomes", [])
+            # Must be a candle market with More Green/More Red
+            has_green = any("green" in o.get("title","").lower() for o in outcomes)
+            has_red   = any("red" in o.get("title","").lower() for o in outcomes)
+            if has_green and has_red:
+                return m
 
     raise Exception(f"No open {asset} candle market found")
 

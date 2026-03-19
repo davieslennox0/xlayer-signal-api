@@ -1,239 +1,282 @@
 """
-sniper_engine.py — High-frequency sniper triggers for 5-min BTC/ETH markets
-Fires instantly on: order book walls, liquidation cascades, round number bounces
+sniper_engine.py — High-frequency sniper triggers
+Uses Kraken + Bybit APIs (no geo-blocking)
+Detectors: order book walls, liquidation cascade, round numbers, tape momentum
 """
 
 import requests
 import numpy as np
 
-BINANCE_API  = "https://api.binance.com"
-BINANCE_FAPI = "https://fapi.binance.com"
+KRAKEN_API = "https://api.kraken.com/0/public"
+BYBIT_API  = "https://api.bybit.com/v5/market"
 
-# Round numbers BTC reacts to
+# Round number levels
 BTC_ROUND_LEVELS = [
-    70000, 71000, 72000, 73000, 74000, 75000,
+    65000, 66000, 67000, 68000, 69000, 70000,
+    71000, 72000, 73000, 74000, 75000,
     76000, 77000, 78000, 79000, 80000,
-    65000, 66000, 67000, 68000, 69000,
 ]
 ETH_ROUND_LEVELS = [
-    2000, 2100, 2200, 2300, 2400, 2500,
-    2600, 2700, 2800, 2900, 3000,
-    1800, 1900,
+    1800, 1900, 2000, 2100, 2200, 2300,
+    2400, 2500, 2600, 2700, 2800, 2900, 3000,
 ]
+
+KRAKEN_SYMBOLS = {"BTC": "XBTUSD", "ETH": "ETHUSD"}
+BYBIT_SYMBOLS  = {"BTC": "BTCUSDT", "ETH": "ETHUSDT"}
 
 
 # ── Data fetchers ─────────────────────────────────────────────────────────────
-def get_order_book_deep(symbol="BTCUSDT", limit=50):
-    """Fetch deep order book to detect walls."""
+def get_order_book(asset="BTC", limit=25):
+    """Fetch order book from Kraken."""
     try:
-        resp = requests.get(
-            f"{BINANCE_API}/api/v3/depth",
-            params={"symbol": symbol, "limit": limit},
-            timeout=6
+        symbol = KRAKEN_SYMBOLS.get(asset, "XBTUSD")
+        resp   = requests.get(
+            f"{KRAKEN_API}/Depth",
+            params={"pair": symbol, "count": limit},
+            timeout=8
         )
-        data = resp.json()
-        bids = [(float(p), float(q)) for p, q in data["bids"]]
-        asks = [(float(p), float(q)) for p, q in data["asks"]]
+        data   = resp.json()
+        if data.get("error"):
+            return [], []
+        result = list(data["result"].values())[0]
+        bids   = [(float(p), float(q)) for p, q, _ in result["bids"]]
+        asks   = [(float(p), float(q)) for p, q, _ in result["asks"]]
         return bids, asks
     except Exception:
         return [], []
 
 
-def get_recent_liquidations(symbol="BTCUSDT"):
-    """Fetch recent liquidation orders from Binance futures."""
+def get_recent_trades(asset="BTC", limit=50):
+    """Fetch recent trades from Kraken."""
     try:
-        resp = requests.get(
-            f"{BINANCE_FAPI}/fapi/v1/forceOrders",
-            params={"symbol": symbol, "limit": 20},
-            timeout=6
+        symbol = KRAKEN_SYMBOLS.get(asset, "XBTUSD")
+        resp   = requests.get(
+            f"{KRAKEN_API}/Trades",
+            params={"pair": symbol, "count": limit},
+            timeout=8
         )
-        return resp.json() if resp.status_code == 200 else []
+        data = resp.json()
+        if data.get("error"):
+            return []
+        result = list(data["result"].values())[0]
+        # Each trade: [price, volume, time, buy/sell, market/limit, misc]
+        trades = [{"price": float(t[0]), "volume": float(t[1]),
+                   "side": t[3]} for t in result]
+        return trades
     except Exception:
         return []
 
 
-def get_recent_trades(symbol="BTCUSDT", limit=50):
-    """Fetch recent individual trades to detect tape momentum."""
+def get_klines(asset="BTC", interval="1", limit=20):
+    """Fetch 1-minute klines from Bybit."""
     try:
-        resp = requests.get(
-            f"{BINANCE_API}/api/v3/trades",
-            params={"symbol": symbol, "limit": limit},
+        symbol = BYBIT_SYMBOLS.get(asset, "BTCUSDT")
+        resp   = requests.get(
+            f"{BYBIT_API}/kline",
+            params={"category": "linear", "symbol": symbol,
+                    "interval": interval, "limit": limit},
+            timeout=8
+        )
+        data = resp.json()
+        if data.get("retCode") != 0:
+            return []
+        candles = []
+        for k in data["result"]["list"]:
+            candles.append({
+                "open":   float(k[1]),
+                "high":   float(k[2]),
+                "low":    float(k[3]),
+                "close":  float(k[4]),
+                "volume": float(k[5]),
+            })
+        return list(reversed(candles))  # oldest first
+    except Exception:
+        return []
+
+
+def get_current_price(asset="BTC"):
+    """Get current price from Bybit."""
+    try:
+        symbol = BYBIT_SYMBOLS.get(asset, "BTCUSDT")
+        resp   = requests.get(
+            f"{BYBIT_API}/tickers",
+            params={"category": "linear", "symbol": symbol},
             timeout=6
         )
         data = resp.json()
-        if isinstance(data, list):
-            return data
-        return []
+        if data.get("retCode") != 0:
+            return 0
+        return float(data["result"]["list"][0]["lastPrice"])
     except Exception:
-        return []
+        return 0
 
 
-def get_24h_stats(symbol="BTCUSDT"):
-    """Get 24h price stats."""
+def get_liquidations(asset="BTC", limit=50):
+    """Fetch recent liquidations from Bybit."""
     try:
-        resp = requests.get(
-            f"{BINANCE_API}/api/v3/ticker/24hr",
-            params={"symbol": symbol},
-            timeout=6
+        symbol = BYBIT_SYMBOLS.get(asset, "BTCUSDT")
+        resp   = requests.get(
+            f"{BYBIT_API}/liquidation",
+            params={"category": "linear", "symbol": symbol, "limit": limit},
+            timeout=8
         )
-        return resp.json()
+        data = resp.json()
+        if data.get("retCode") != 0:
+            return []
+        return data["result"]["list"]
     except Exception:
-        return {}
+        return []
 
 
 # ── Sniper Detectors ──────────────────────────────────────────────────────────
-def detect_order_book_wall(symbol="BTCUSDT", wall_threshold_usd=300000):
+def detect_order_book_wall(asset="BTC", wall_threshold_usd=150000):
     """
-    Detect large buy/sell walls in order book.
-    A wall is a single order > $300K USD at a key price level.
-    Returns: (score, description)
-    score: +2 = strong buy wall (price likely up), -2 = strong sell wall (price likely down)
+    Detect large buy/sell walls.
+    A wall = single order > $150K at a key price level.
     """
-    bids, asks = get_order_book_deep(symbol, limit=50)
+    bids, asks = get_order_book(asset)
     if not bids or not asks:
         return 0, ""
 
-    current_price = bids[0][0] if bids else 0
+    current = bids[0][0] if bids else 0
 
-    # Find largest single wall in top 20 levels
-    max_bid_wall = max(((p * q, p, q) for p, q in bids[:20]), default=(0, 0, 0))
-    max_ask_wall = max(((p * q, p, q) for p, q in asks[:20]), default=(0, 0, 0))
+    max_bid = max(((p * q, p, q) for p, q in bids[:20]), default=(0, 0, 0))
+    max_ask = max(((p * q, p, q) for p, q in asks[:20]), default=(0, 0, 0))
 
-    bid_usd = max_bid_wall[0]
-    ask_usd = max_ask_wall[0]
-
-    result_score = 0
-    result_desc  = ""
-
-    if bid_usd > wall_threshold_usd:
-        dist = round(abs(max_bid_wall[1] - current_price) / current_price * 100, 3)
-        result_score = 2
-        result_desc  = f"🧱 BUY WALL ${bid_usd/1000:.0f}K at ${max_bid_wall[1]:,} ({dist}% away) → Price support 🟢"
+    bid_usd = max_bid[0]
+    ask_usd = max_ask[0]
 
     if ask_usd > wall_threshold_usd and ask_usd > bid_usd:
-        dist = round(abs(max_ask_wall[1] - current_price) / current_price * 100, 3)
-        result_score = -2
-        result_desc  = f"🧱 SELL WALL ${ask_usd/1000:.0f}K at ${max_ask_wall[1]:,} ({dist}% away) → Price resistance 🔴"
+        dist = round(abs(max_ask[1] - current) / current * 100, 3)
+        return -2, f"🧱 SELL WALL ${ask_usd/1000:.0f}K at ${max_ask[1]:,} ({dist}% away) → Resistance 🔴"
 
-    return result_score, result_desc
-
-
-def detect_liquidation_cascade(symbol="BTCUSDT", threshold_usd=500000):
-    """
-    Detect recent liquidation cascade.
-    Large liquidations = forced selling/buying = price reversal incoming.
-    Returns: (score, description)
-    score: +3 = large long liquidations (price bottomed, bounce UP)
-           -3 = large short liquidations (price topped, dump DOWN)
-    """
-    liqs = get_recent_liquidations(symbol)
-    if not liqs:
-        return 0, ""
-
-    long_liqs  = sum(float(l.get("origQty", 0)) * float(l.get("price", 0))
-                    for l in liqs if l.get("side") == "SELL")  # long liq = sell
-    short_liqs = sum(float(l.get("origQty", 0)) * float(l.get("price", 0))
-                    for l in liqs if l.get("side") == "BUY")   # short liq = buy
-
-    if long_liqs > threshold_usd:
-        return 3, f"💥 LIQUIDATION CASCADE: ${long_liqs/1000:.0f}K longs liquidated → Bounce UP incoming 🟢"
-    if short_liqs > threshold_usd:
-        return -3, f"💥 LIQUIDATION CASCADE: ${short_liqs/1000:.0f}K shorts liquidated → Dump DOWN incoming 🔴"
+    if bid_usd > wall_threshold_usd:
+        dist = round(abs(max_bid[1] - current) / current * 100, 3)
+        return 2, f"🧱 BUY WALL ${bid_usd/1000:.0f}K at ${max_bid[1]:,} ({dist}% away) → Support 🟢"
 
     return 0, ""
 
 
-def detect_round_number(symbol="BTCUSDT", threshold_pct=0.15):
+def detect_liquidation_cascade(asset="BTC"):
     """
-    Detect if price is near a key round number.
-    Price within 0.15% of round number = high reaction probability.
-    Returns: (score, description)
+    Detect liquidation cascade using:
+    1. Bybit liquidation feed (direct)
+    2. Kline volume spike fallback
     """
-    try:
-        resp = requests.get(
-            f"{BINANCE_API}/api/v3/ticker/price",
-            params={"symbol": symbol},
-            timeout=6
-        )
-        price = float(resp.json()["price"])
-    except Exception:
+    # Try Bybit liquidations first
+    liqs = get_liquidations(asset)
+    if liqs:
+        try:
+            long_liqs  = sum(float(l["size"]) * float(l["price"])
+                            for l in liqs if l.get("side") == "Buy")   # Buy = short liq
+            short_liqs = sum(float(l["size"]) * float(l["price"])
+                            for l in liqs if l.get("side") == "Sell")  # Sell = long liq
+
+            if short_liqs > 200000:
+                return 3, f"💥 CASCADE: ${short_liqs/1000:.0f}K longs liquidated → Bounce UP 🟢"
+            if long_liqs > 200000:
+                return -3, f"💥 CASCADE: ${long_liqs/1000:.0f}K shorts liquidated → Dump DOWN 🔴"
+        except Exception:
+            pass
+
+    # Fallback: volume spike on klines
+    candles = get_klines(asset, interval="1", limit=20)
+    if len(candles) < 5:
         return 0, ""
 
-    levels = BTC_ROUND_LEVELS if "BTC" in symbol else ETH_ROUND_LEVELS
+    avg_vol    = np.mean([c["volume"] for c in candles[-16:-1]])
+    last       = candles[-1]
+    cur_vol    = last["volume"]
+    price_move = (last["close"] - last["open"]) / last["open"] * 100 if last["open"] > 0 else 0
+
+    if avg_vol == 0:
+        return 0, ""
+
+    vol_ratio = cur_vol / avg_vol
+
+    if vol_ratio >= 3.0:
+        if price_move <= -0.3:
+            return 3, f"💥 VOL CASCADE: {vol_ratio:.1f}x vol + {price_move:.2f}% drop → Long liq → UP 🟢"
+        elif price_move >= 0.3:
+            return -3, f"💥 VOL CASCADE: {vol_ratio:.1f}x vol + +{price_move:.2f}% spike → Short liq → DOWN 🔴"
+
+    if vol_ratio >= 2.0:
+        if price_move <= -0.2:
+            return 1, f"⚠️ Vol surge {vol_ratio:.1f}x + drop → Possible long liq 🟢"
+        elif price_move >= 0.2:
+            return -1, f"⚠️ Vol surge {vol_ratio:.1f}x + spike → Possible short liq 🔴"
+
+    return 0, ""
+
+
+def detect_round_number(asset="BTC", threshold_pct=0.15):
+    """Detect if price is near a key round number."""
+    price  = get_current_price(asset)
+    if price == 0:
+        return 0, ""
+
+    levels = BTC_ROUND_LEVELS if asset == "BTC" else ETH_ROUND_LEVELS
 
     for level in levels:
         dist_pct = abs(price - level) / level * 100
         if dist_pct <= threshold_pct:
             if price < level:
-                # Approaching from below — resistance
-                return -1, f"🎯 ROUND NUMBER: ${price:,} near ${level:,} resistance → Rejection risk 🔴"
+                return -1, f"🎯 ROUND: ${price:,} near ${level:,} resistance → Rejection risk 🔴"
             else:
-                # Just broke above — support
-                return 1, f"🎯 ROUND NUMBER: ${price:,} above ${level:,} support → Bounce likely 🟢"
+                return 1, f"🎯 ROUND: ${price:,} above ${level:,} support → Bounce likely 🟢"
 
     return 0, ""
 
 
-def detect_tape_momentum(symbol="BTCUSDT", lookback=30):
-    """
-    Tape reading — detect consecutive buy or sell dominance in recent trades.
-    Returns: (score, description)
-    """
-    trades = get_recent_trades(symbol, limit=lookback)
+def detect_tape_momentum(asset="BTC", lookback=50):
+    """Detect buy/sell dominance in recent trades."""
+    trades = get_recent_trades(asset, limit=lookback)
     if not trades:
         return 0, ""
 
-    buys  = sum(1 for t in trades if not t.get("isBuyerMaker"))
-    sells = sum(1 for t in trades if t.get("isBuyerMaker"))
+    buys  = sum(1 for t in trades if t.get("side") == "b")  # Kraken: b=buy
+    sells = sum(1 for t in trades if t.get("side") == "s")
     total = len(trades)
+    if total == 0:
+        return 0, ""
 
     buy_pct  = buys / total * 100
     sell_pct = sells / total * 100
 
-    if buy_pct >= 75:
-        return 1, f"📈 TAPE: {buy_pct:.0f}% buy trades in last {lookback} → Strong buying pressure 🟢"
-    if sell_pct >= 75:
-        return -1, f"📉 TAPE: {sell_pct:.0f}% sell trades in last {lookback} → Strong selling pressure 🔴"
+    if buy_pct >= 70:
+        return 1, f"📈 TAPE: {buy_pct:.0f}% buys in last {total} trades → Buying pressure 🟢"
+    if sell_pct >= 70:
+        return -1, f"📉 TAPE: {sell_pct:.0f}% sells in last {total} trades → Selling pressure 🔴"
 
     return 0, ""
 
 
 # ── Main Sniper Signal ────────────────────────────────────────────────────────
 def generate_sniper_signal(asset="BTC") -> dict:
-    """
-    Run all sniper detectors and return combined signal.
-    Fast — designed to run every 60 seconds.
-    """
-    symbol    = f"{asset}USDT"
-    score     = 0
-    triggers  = []
-    reasons   = []
+    score    = 0
+    triggers = []
+    reasons  = []
 
-    # Order book wall (weight: ±2)
-    wall_score, wall_desc = detect_order_book_wall(symbol)
-    if wall_score != 0:
-        score += wall_score
-        triggers.append(wall_desc)
+    wall_s, wall_d = detect_order_book_wall(asset)
+    if wall_s != 0:
+        score += wall_s
+        triggers.append(wall_d)
 
-    # Liquidation cascade (weight: ±3)
-    liq_score, liq_desc = detect_liquidation_cascade(symbol)
-    if liq_score != 0:
-        score += liq_score
-        triggers.append(liq_desc)
+    liq_s, liq_d = detect_liquidation_cascade(asset)
+    if liq_s != 0:
+        score += liq_s
+        triggers.append(liq_d)
 
-    # Round number (weight: ±1)
-    rn_score, rn_desc = detect_round_number(symbol)
-    if rn_score != 0:
-        score += rn_score
-        triggers.append(rn_desc)
+    rn_s, rn_d = detect_round_number(asset)
+    if rn_s != 0:
+        score += rn_s
+        triggers.append(rn_d)
 
-    # Tape momentum (weight: ±1)
-    tape_score, tape_desc = detect_tape_momentum(symbol)
-    if tape_score != 0:
-        score += tape_score
-        reasons.append(tape_desc)
+    tape_s, tape_d = detect_tape_momentum(asset)
+    if tape_s != 0:
+        score += tape_s
+        reasons.append(tape_d)
 
-    # Confidence mapping
     max_score  = 7
     confidence = round((score + max_score) / (max_score * 2) * 100, 1)
     confidence = max(0, min(100, confidence))
@@ -262,16 +305,16 @@ def format_sniper_signal(sig: dict) -> str:
     lines = [
         f"⚡ *{sig['asset']} Sniper Signal*",
         f"━━━━━━━━━━━━━━━━━━━━━━",
-        f"📈 Signal     : {sig['label']}",
-        f"🎯 Score      : {sig['score']}/7",
+        f"📈 Signal : {sig['label']}",
+        f"🎯 Score  : {sig['score']}/7",
     ]
     if sig["triggers"]:
-        lines.append("🔫 *Sniper Triggers:*")
+        lines.append("🔫 *Triggers:*")
         for t in sig["triggers"]:
             lines.append(f"  {t}")
     if sig["reasons"]:
         for r in sig["reasons"]:
             lines.append(f"  • {r}")
     lines.append("━━━━━━━━━━━━━━━━━━━━━━")
-    lines.append(f"{'🔫 SNIPE FIRING!' if sig['tradeable'] else '👁 Watching...'}") 
+    lines.append(f"{'🔫 SNIPE FIRING!' if sig['tradeable'] else '👁 Watching...'}")
     return "\n".join(lines)

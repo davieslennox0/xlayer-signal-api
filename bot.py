@@ -1441,8 +1441,19 @@ async def sports_scan(app: Application):
 
 
 # ── Sniper scanner ───────────────────────────────────────────────────────────
+_last_sniper_trade = {}  # uid -> market window they last traded
+
 async def sniper_scan(app: Application):
-    """Run every 60 seconds — fires on sniper triggers for sniper/hybrid users."""
+    """Run every 60 seconds — fires on sniper triggers for sniper/hybrid users.
+    Only ONE trade per 5-minute market window per user.
+    """
+    import time
+    from datetime import datetime, timezone
+
+    # Get current 5-minute window key e.g. "2026-03-19-01-45"
+    now = datetime.now(timezone.utc)
+    window = now.strftime("%Y-%m-%d-%H-") + str((now.minute // 5) * 5).zfill(2)
+
     sniper_users = [u for u in db.get_btc_traders()
                     if (u["trading_mode"] or "hybrid") in ["sniper", "hybrid"]]
     if not sniper_users:
@@ -1466,9 +1477,16 @@ async def sniper_scan(app: Application):
 
     for user in sniper_users:
         uid = user["telegram_id"]
-        bet = user.get("btc_bet_amount") or BET_AMOUNT
+        bet = user["btc_bet_amount"] if user["btc_bet_amount"] else BET_AMOUNT
         if user["balance"] < bet:
             continue
+
+        # One trade per 5-minute market window per user (across ALL assets)
+        last_window = _last_sniper_trade.get(uid, "")
+        if last_window == window:
+            logger.info(f"Sniper already traded this window ({window}) for {uid} — skipping")
+            continue
+
         try:
             pk     = wm.decrypt_key(user["wallet_key"])
             result = trader.place_trade(pk, best["direction"], bet, best["asset"].lower())
@@ -1485,6 +1503,8 @@ async def sniper_scan(app: Application):
                 tx, best["asset"].lower(),
                 result.get("market", ""), result.get("outcome", "")
             )
+            # Mark window as traded AFTER successful trade
+            _last_sniper_trade[uid] = window
             triggers_text = "\n".join(best["triggers"]) if best["triggers"] else ""
             await app.bot.send_message(
                 chat_id=uid,
@@ -1688,13 +1708,10 @@ def main():
 
         scheduler.add_job(lambda: run(auto_trade(app)), 'interval', minutes=5)
         scheduler.add_job(lambda: run(sniper_scan(app)), 'interval', minutes=1)
-        # Sports scan before major game times (17:45, 19:45, 20:45 UTC)
         scheduler.add_job(lambda: run(sports_scan(app)), 'cron', hour=17, minute=45)
         scheduler.add_job(lambda: run(sports_scan(app)), 'cron', hour=19, minute=45)
         scheduler.add_job(lambda: run(sports_scan(app)), 'cron', hour=20, minute=45)
-        # Claim every 10 minutes
         scheduler.add_job(lambda: run(auto_claim(app)), 'interval', minutes=10)
-        # Daily report
         scheduler.add_job(lambda: run(daily_report(app)), 'cron', hour=23, minute=0)
         scheduler.start()
         logger.info("Bot started...")
