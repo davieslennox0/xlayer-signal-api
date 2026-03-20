@@ -1,6 +1,7 @@
-python-telegram-bot==20.3
+fastapi
+uvicorn
 requests
 numpy
-apscheduler
 python-dotenv
-cryptography
+eth-account
+httpx
