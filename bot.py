@@ -1457,6 +1457,20 @@ async def sports_scan(app: Application):
         logger.error(f"Sports scan error: {e}")
 
 
+# ── Balance Sync ─────────────────────────────────────────────────────────────
+async def sync_balances(app: Application):
+    """Sync all user bot balances with actual on-chain balance every 5 minutes."""
+    users = db.get_all_active_users()
+    for user in users:
+        try:
+            onchain = wm.get_usd1_balance(user["wallet_address"])
+            if onchain != user["balance"]:
+                db.update_user(user["telegram_id"], balance=onchain)
+                logger.info(f"Synced {user['telegram_id']}: ${user['balance']:.4f} -> ${onchain:.4f}")
+        except Exception as e:
+            logger.error(f"Sync error {user['telegram_id']}: {e}")
+
+
 # ── Sniper scanner ───────────────────────────────────────────────────────────
 _last_sniper_trade = {}  # uid -> market window they last traded
 
@@ -1850,6 +1864,7 @@ def main():
         def run(coro):
             asyncio.run_coroutine_threadsafe(coro, loop)
 
+        scheduler.add_job(lambda: run(sync_balances(app)), 'interval', seconds=30)
         scheduler.add_job(lambda: run(auto_trade(app)), 'interval', minutes=5)
         scheduler.add_job(lambda: run(sniper_scan(app)), 'interval', minutes=1)
         scheduler.add_job(lambda: run(check_reactivation(app)), 'interval', hours=1)
