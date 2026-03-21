@@ -22,7 +22,7 @@ CHAIN_ID      = 196
 
 # Agent wallet — uses existing wallet
 AGENT_KEY     = None  # Set after wallet_manager loads
-AGENT_ADDRESS = "0xB0ec9D8E13d7d38206cc4F9022A7768A34d07c4C"
+AGENT_ADDRESS = "0xdec754869Aa921661676e5FfB8589556cBDF3Ec7"
 
 
 def rpc_call(method, params):
