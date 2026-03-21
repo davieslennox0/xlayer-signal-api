@@ -98,3 +98,8 @@ POST /execute?tx=<payment_tx_hash>
 Body: {"asset": "BTC", "direction": "up", "amount": 1.0, "wallet": "0x..."}
 Returns ready-to-use approve calldata + current signal for the asset.
 Cost: $0.05 USDT (5x signal price)
+
+## Data Sources
+- **Primary:** OKX Market API (5-minute candles for all assets)
+- **Fallback:** Kraken OHLC API
+- **Order Book:** Kraken Depth API
