@@ -60,22 +60,44 @@ CRYPTOCOMPARE_SYMBOLS = {
 SUPPORTED_ASSETS = list(CRYPTOCOMPARE_SYMBOLS.keys())
 
 
+# OKX Market API instrument IDs
+OKX_INST_IDS = {
+    "BTC":  "BTC-USDT",
+    "ETH":  "ETH-USDT",
+    "XAUT": "XAUT-USDT",
+    "OKB":  "OKB-USDT",
+    "ZEC":  "ZEC-USDT",
+    "BCH":  "BCH-USDT",
+}
+
+
 def get_candles(asset="BTC", limit=100):
-    """Fetch 5-minute candles — CryptoCompare for crypto, Kraken for metals."""
-    symbol = CRYPTOCOMPARE_SYMBOLS.get(asset, asset)
+    """Fetch 5-minute candles — OKX Market API primary, Kraken fallback."""
+
+    # Primary: OKX Market API
     try:
+        inst_id = OKX_INST_IDS.get(asset, f"{asset}-USDT")
         resp = requests.get(
-            "https://min-api.cryptocompare.com/data/v2/histominute",
-            params={"fsym": symbol, "tsym": "USD", "limit": limit},
+            "https://www.okx.com/api/v5/market/candles",
+            params={"instId": inst_id, "bar": "5m", "limit": str(limit)},
             timeout=10
         )
-        data = resp.json().get("Data", {}).get("Data", [])
-        if data and data[-1]["close"] > 0:
-            return data
+        data = resp.json()
+        if data.get("code") == "0" and data.get("data"):
+            candles = []
+            for c in reversed(data["data"]):  # OKX returns newest first
+                candles.append({
+                    "open":       float(c[1]),
+                    "high":       float(c[2]),
+                    "low":        float(c[3]),
+                    "close":      float(c[4]),
+                    "volumefrom": float(c[5]),
+                })
+            return candles
     except Exception:
         pass
 
-    # Fallback to Kraken OHLC
+    # Fallback: Kraken OHLC
     try:
         pair = KRAKEN_PAIRS.get(asset, f"X{asset}ZUSD")
         resp = requests.get(
