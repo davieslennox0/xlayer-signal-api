@@ -24,7 +24,7 @@ app = FastAPI(
 SIGNAL_PRICE_USDT = 0.01  # $0.01 per signal
 OWNER_EVM         = os.getenv("OWNER_EVM", "0x95FB94763D57f8416A524091E641a9D26741cB31")
 XLAYER_RPC        = "https://rpc.xlayer.tech"
-USDT_XLAYER       = "0x1E4a5963aBFD975d8c9021ce480b42188849D41d"  # USDT on X Layer
+USDT_XLAYER       = "0x779Ded0c9e1022225f8E0630b35a9b54bE713736"  # USDT on X Layer
 
 # Cache signals for 60 seconds to avoid hammering APIs
 _signal_cache = {}
@@ -254,9 +254,14 @@ def verify_x402_payment(tx_hash: str, expected_amount: float = SIGNAL_PRICE_USDT
         if not receipt or receipt.get("status") != "0x1":
             return False
 
-        # Check it's a USDT transfer to our wallet
+        # Check it's a USDT transfer — to field is the token contract
         to = receipt.get("to", "").lower()
         if to != USDT_XLAYER.lower():
+            return False
+
+        # Check logs for Transfer event to owner
+        logs = receipt.get("logs", [])
+        if not logs:
             return False
 
         return True
