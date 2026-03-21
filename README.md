@@ -82,3 +82,19 @@ curl http://108.61.91.153:8000/signal/BTC/free
 curl http://108.61.91.153:8000/signal/XAUT/free
 Built by
 Trend Pilot — AI Trading Infrastructure
+
+## Additional Endpoints
+
+### Risk Score
+GET /risk/{asset}?tx=<payment_tx_hash>
+Returns volatility, trend direction, risk level (LOW/MEDIUM/HIGH) and momentum.
+
+### On-chain Wallet Data
+GET /onchain/{wallet}?tx=<payment_tx_hash>
+Returns OKB balance, USDT0 balance and transaction count on X Layer.
+
+### Trade Execution Calldata
+POST /execute?tx=<payment_tx_hash>
+Body: {"asset": "BTC", "direction": "up", "amount": 1.0, "wallet": "0x..."}
+Returns ready-to-use approve calldata + current signal for the asset.
+Cost: $0.05 USDT (5x signal price)

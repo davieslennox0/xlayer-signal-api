@@ -31,6 +31,15 @@ _signal_cache = {}
 CACHE_TTL = 60
 
 
+def rpc_call_xlayer(method: str, params: list):
+    """Direct RPC call to X Layer."""
+    resp = requests.post(XLAYER_RPC, json={
+        "jsonrpc": "2.0", "method": method,
+        "params":  params, "id": 1
+    }, timeout=10)
+    return resp.json().get("result")
+
+
 # ── Price feeds ───────────────────────────────────────────────────────────────
 KRAKEN_PAIRS = {
     "BTC":  "XBTUSD",
@@ -360,3 +369,201 @@ async def get_all_signals(tx: str = None):
 @app.get("/health")
 async def health():
     return {"status": "ok", "timestamp": int(time.time())}
+
+
+# ── On-chain Transaction Data ─────────────────────────────────────────────────
+@app.get("/onchain/{wallet}")
+async def get_onchain_data(wallet: str, tx: str = None):
+    """
+    Get on-chain data for a wallet on X Layer.
+    Returns: balance, recent transactions, token holdings.
+    x402 payment required.
+    """
+    if not tx:
+        return JSONResponse(
+            status_code=402,
+            content={
+                "error":   "Payment required",
+                "amount":  SIGNAL_PRICE_USDT,
+                "token":   "USDT0",
+                "chain":   "X Layer (Chain ID: 196)",
+                "pay_to":  OWNER_EVM,
+                "retry":   f"GET /onchain/{wallet}?tx=<your_tx_hash>",
+            }
+        )
+
+    if not verify_x402_payment(tx):
+        raise HTTPException(status_code=402, detail="Payment not verified")
+
+    try:
+        # OKB balance
+        okb_raw  = rpc_call_xlayer("eth_getBalance", [wallet, "latest"])
+        okb_bal  = int(okb_raw, 16) / 10**18 if okb_raw else 0
+
+        # USDT0 balance
+        usdt_data = "0x70a08231000000000000000000000000" + wallet[2:].lower()
+        usdt_raw  = rpc_call_xlayer("eth_call", [{"to": USDT_XLAYER, "data": usdt_data}, "latest"])
+        usdt_bal  = int(usdt_raw, 16) / 10**6 if usdt_raw else 0
+
+        # Recent transactions count
+        nonce = rpc_call_xlayer("eth_getTransactionCount", [wallet, "latest"])
+        tx_count = int(nonce, 16) if nonce else 0
+
+        return {
+            "status":    "ok",
+            "wallet":    wallet,
+            "chain":     "X Layer",
+            "chain_id":  196,
+            "balances": {
+                "OKB":   round(okb_bal, 6),
+                "USDT0": round(usdt_bal, 4),
+            },
+            "tx_count":  tx_count,
+            "timestamp": int(time.time()),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Risk Score ────────────────────────────────────────────────────────────────
+@app.get("/risk/{asset}")
+async def get_risk_score(asset: str, tx: str = None):
+    """
+    Get risk score for asset — volatility, trend strength, market regime.
+    x402 payment required.
+    """
+    asset = asset.upper()
+    if asset not in SUPPORTED_ASSETS:
+        raise HTTPException(status_code=400, detail=f"Unsupported asset")
+
+    if not tx:
+        return JSONResponse(
+            status_code=402,
+            content={
+                "error":   "Payment required",
+                "amount":  SIGNAL_PRICE_USDT,
+                "pay_to":  OWNER_EVM,
+                "retry":   f"GET /risk/{asset}?tx=<your_tx_hash>",
+            }
+        )
+
+    if not verify_x402_payment(tx):
+        raise HTTPException(status_code=402, detail="Payment not verified")
+
+    try:
+        candles = get_candles(asset)
+        if not candles:
+            raise Exception(f"No data for {asset}")
+
+        closes  = [c["close"] for c in candles]
+        current = closes[-1]
+
+        # Volatility — standard deviation of returns
+        returns    = np.diff(closes) / closes[:-1]
+        volatility = round(float(np.std(returns) * 100), 4)
+
+        # Trend strength — price vs 20-period MA
+        ma20        = np.mean(closes[-20:])
+        trend_pct   = round((current - ma20) / ma20 * 100, 4)
+        trend_dir   = "bullish" if trend_pct > 0 else "bearish"
+
+        # Momentum
+        momentum    = round((closes[-1] - closes[-5]) / closes[-5] * 100, 4)
+
+        # Risk level
+        if volatility > 0.5:
+            risk_level = "HIGH"
+        elif volatility > 0.2:
+            risk_level = "MEDIUM"
+        else:
+            risk_level = "LOW"
+
+        # Overall score 0-100 (higher = riskier)
+        risk_score = min(100, round(volatility * 100 + abs(momentum) * 10, 1))
+
+        return {
+            "status":      "ok",
+            "asset":       asset,
+            "price":       round(current, 4),
+            "risk_level":  risk_level,
+            "risk_score":  risk_score,
+            "volatility":  f"{volatility}%",
+            "trend":       trend_dir,
+            "trend_pct":   f"{trend_pct}%",
+            "momentum":    f"{momentum}%",
+            "timestamp":   int(time.time()),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Trade Execution Calldata ──────────────────────────────────────────────────
+@app.post("/execute")
+async def get_execution_calldata(request: Request, tx: str = None):
+    """
+    Get ready-to-execute trade calldata for X Layer DEX.
+    Agent pays once and gets signed calldata to broadcast.
+    x402 payment required.
+    """
+    if not tx:
+        return JSONResponse(
+            status_code=402,
+            content={
+                "error":   "Payment required",
+                "amount":  SIGNAL_PRICE_USDT * 5,  # Execution costs more
+                "pay_to":  OWNER_EVM,
+                "note":    "POST body: {asset, direction, amount, wallet}",
+            }
+        )
+
+    if not verify_x402_payment(tx):
+        raise HTTPException(status_code=402, detail="Payment not verified")
+
+    try:
+        body      = await request.json()
+        asset     = body.get("asset", "BTC").upper()
+        direction = body.get("direction", "up").lower()
+        amount    = float(body.get("amount", 1.0))
+        wallet    = body.get("wallet", "")
+
+        if asset not in SUPPORTED_ASSETS:
+            raise HTTPException(status_code=400, detail="Unsupported asset")
+
+        # Get current signal
+        signal = generate_signal(asset)
+
+        # Build OKX DEX swap calldata
+        # BUY = swap USDT0 → asset token
+        # SELL = swap asset token → USDT0
+        USDT0 = USDT_XLAYER
+        amount_raw = int(amount * 10**6)  # USDT0 has 6 decimals
+
+        # ERC20 approve calldata for DEX
+        dex_router  = "0x9b68C14e936104e9a7a24c712BEecdc220002984"  # OKX DEX on X Layer
+        approve_sig = "0x095ea7b3"
+        approve_data = approve_sig + dex_router[2:].lower().zfill(64) + hex(amount_raw)[2:].zfill(64)
+
+        return {
+            "status":      "ok",
+            "asset":       asset,
+            "direction":   direction,
+            "amount":      amount,
+            "signal":      {
+                "confidence": signal["confidence"],
+                "direction":  signal["direction"],
+                "tradeable":  signal["tradeable"],
+            },
+            "calldata": {
+                "approve": {
+                    "to":   USDT0,
+                    "data": approve_data,
+                    "description": f"Approve {amount} USDT0 for DEX"
+                },
+                "note": "Submit approve tx first, then use OKX DEX API to execute swap"
+            },
+            "dex_router":  dex_router,
+            "chain_id":    196,
+            "timestamp":   int(time.time()),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

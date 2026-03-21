@@ -17,7 +17,7 @@ XLAYER_RPC    = "https://rpc.xlayer.tech"
 OWNER_EVM     = os.getenv("OWNER_EVM")
 MASTER_KEY    = os.getenv("MASTER_KEY")
 SIGNAL_PRICE  = 0.01
-USDT_XLAYER   = "0x1E4a5963aBFD975d8c9021ce480b42188849D41d"
+USDT_XLAYER   = "0x779Ded0c9e1022225f8E0630b35a9b54bE713736"
 CHAIN_ID      = 196
 
 # Agent wallet — uses existing wallet
@@ -36,7 +36,7 @@ def rpc_call(method, params):
 def get_usdt_balance(wallet):
     data = "0x70a08231000000000000000000000000" + wallet[2:].lower()
     raw  = rpc_call("eth_call", [{"to": USDT_XLAYER, "data": data}, "latest"])
-    return int(raw, 16) / 10**18 if raw else 0
+    return int(raw, 16) / 10**6 if raw else 0
 
 
 def pay_for_signal(private_key: str, amount_usdt: float = SIGNAL_PRICE) -> str:
@@ -45,8 +45,8 @@ def pay_for_signal(private_key: str, amount_usdt: float = SIGNAL_PRICE) -> str:
     nonce     = int(rpc_call("eth_getTransactionCount", [account.address, "latest"]), 16)
     gas_price = int(rpc_call("eth_gasPrice", []), 16)
 
-    # ERC20 transfer calldata
-    amount_wei = int(amount_usdt * 10**18)
+    # ERC20 transfer calldata — USDT0 uses 6 decimals
+    amount_wei = int(amount_usdt * 10**6)
     to_padded  = OWNER_EVM[2:].lower().zfill(64)
     amt_padded = hex(amount_wei)[2:].zfill(64)
     data       = "0xa9059cbb" + to_padded + amt_padded
@@ -78,9 +78,7 @@ def get_signal_with_payment(private_key: str, asset: str) -> dict:
     free = requests.get(f"{SIGNAL_API}/signal/{asset}/free").json()
     print(f"   Price: ${free['price']} | Confidence: {free['confidence']}%")
 
-    if not free["tradeable"]:
-        print(f"   ⏸ Signal not tradeable — skipping payment")
-        return free
+    # Always pay — agent pays per request regardless of confidence
 
     # Pay for full signal
     print(f"   💳 Paying ${SIGNAL_PRICE} USDT via x402...")
@@ -134,24 +132,25 @@ def run_agent(private_key: str):
                     timeout=10
                 ).json()
 
-                print(f"   {asset}: ${free['price']} | {free['confidence']}% confidence")
+                price = free.get('price', 'N/A')
+                conf  = free.get('confidence', 0)
+                print(f"   {asset}: ${price} | {conf}% confidence")
 
-                if free["tradeable"]:
-                    # Pay for full signal
-                    signal = get_signal_with_payment(private_key, asset)
-                    if signal and signal.get("tradeable"):
-                        if not best_signal or signal["confidence"] > best_signal["confidence"]:
-                            best_signal = signal
+                # Always pay for full signal — agent pays per request
+                signal = get_signal_with_payment(private_key, asset)
+                if signal:
+                    if not best_signal or signal.get("confidence", 0) > best_signal.get("confidence", 0):
+                        best_signal = signal
 
             except Exception as e:
                 print(f"   {asset}: Error — {e}")
 
         # Act on best signal
         if best_signal:
-            print(f"\n🔫 BEST SIGNAL: {best_signal['asset']} {best_signal['direction'].upper()}")
-            print(f"   Confidence: {best_signal['confidence']}%")
+            asset = best_signal.get("asset", "N/A"); direction = best_signal.get("direction", "hold"); print(f"\n🔫 BEST SIGNAL: {asset} {direction.upper()}")
+            print(f"   Confidence: {best_signal.get("confidence", 0)}%")
             print(f"   Reasons: {', '.join(best_signal.get('reasons', [])[:3])}")
-            print(f"   Action: Execute {best_signal['direction'].upper()} trade on X Layer DEX")
+            print(f"   Action: Execute {best_signal.get("direction", "hold").upper()} trade on X Layer DEX")
             # Trade execution will be added once OKX DEX API is integrated
         else:
             print("\n⏸ No tradeable signals — waiting...")
@@ -161,9 +160,10 @@ def run_agent(private_key: str):
 
 
 if __name__ == "__main__":
-    import wallet_manager as wm
-    import database as db
-    db.init_db()
-    user = db.get_user("6805657810")
-    private_key = wm.decrypt_key(user["wallet_key"])
-    run_agent(private_key)
+    from dotenv import load_dotenv
+    load_dotenv()
+    # Load private key from env or prompt
+    pk = os.getenv("AGENT_PRIVATE_KEY")
+    if not pk:
+        pk = input("Enter agent private key: ").strip()
+    run_agent(pk)
