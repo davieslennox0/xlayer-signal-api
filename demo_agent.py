@@ -160,10 +160,20 @@ def run_agent(private_key: str):
 
 
 if __name__ == "__main__":
+    import sys
     from dotenv import load_dotenv
-    load_dotenv()
-    # Load private key from env or prompt
+    load_dotenv('/root/xlayer/.env')
     pk = os.getenv("AGENT_PRIVATE_KEY")
-    if not pk:
+    if not pk and "--auto" not in sys.argv:
         pk = input("Enter agent private key: ").strip()
-    run_agent(pk)
+    if not pk:
+        print("No private key found in .env")
+        sys.exit(1)
+    if "--auto" in sys.argv:
+        print("🤖 Running in autonomous mode...")
+        while True:
+            run_agent(pk)
+            print("⏳ Next scan in 5 minutes...")
+            time.sleep(300)
+    else:
+        run_agent(pk)
