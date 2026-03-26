@@ -398,6 +398,48 @@ async def health():
     return {"status": "ok", "timestamp": int(time.time())}
 
 
+@app.get("/.well-known/agent.json")
+async def agent_discovery():
+    """Standard agent discovery endpoint — allows AI agents to find and use this API."""
+    return {
+        "name":        "Trend Pilot Signal API",
+        "version":     "1.0.0",
+        "description": "AI-powered trading signals for BTC, ETH, XAUT, OKB, ZEC, BCH with x402 payments on X Layer",
+        "url":         "http://108.61.91.153:8000",
+        "type":        "signal-api",
+        "protocol":    "x402",
+        "payment": {
+            "amount":   0.01,
+            "token":    "USDT0",
+            "chain":    "X Layer",
+            "chain_id": 196,
+            "pay_to":   "0x95FB94763D57f8416A524091E641a9D26741cB31",
+        },
+        "assets":      ["BTC", "ETH", "XAUT", "OKB", "ZEC", "BCH"],
+        "endpoints": {
+            "free_signal":  "/signal/{asset}/free",
+            "paid_signal":  "/signal/{asset}?tx={payment_tx}",
+            "all_signals":  "/signals/all?tx={payment_tx}",
+            "risk_score":   "/risk/{asset}?tx={payment_tx}",
+            "onchain_data": "/onchain/{wallet}?tx={payment_tx}",
+            "execute":      "/execute",
+            "docs":         "/docs",
+        },
+        "capabilities": [
+            "price-signals",
+            "risk-scoring",
+            "order-book-analysis",
+            "wallet-data",
+            "trade-execution-calldata",
+        ],
+        "identity": {
+            "erc8004_registry": "eip155:84532:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+            "github":           "https://github.com/davieslennox0/xlayer-signal-api",
+        },
+        "timestamp": int(time.time()),
+    }
+
+
 # ── On-chain Transaction Data ─────────────────────────────────────────────────
 @app.get("/onchain/{wallet}")
 async def get_onchain_data(wallet: str, tx: str = None):
