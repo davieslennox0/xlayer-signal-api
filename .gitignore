@@ -5,3 +5,11 @@
 *_key*
 __pycache__/
 tunnel.log
+.env
+*.key
+wallet.json
+__pycache__/
+tunnel.log
+*.log
+*.pyc
+.python-version
