@@ -3,3 +3,5 @@
 .env
 *.txt
 *_key*
+__pycache__/
+tunnel.log
