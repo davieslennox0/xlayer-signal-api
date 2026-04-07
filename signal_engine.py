@@ -374,3 +374,23 @@ def format_signal(sig: dict) -> str:
         f"{'✅ Auto-trade firing!' if sig['tradeable'] else '⏸ Below 65% — scanning...'}",
     ]
     return "\n".join(lines)
+
+def generate_any_signal(symbol: str) -> dict:
+    """Generate signal for any cryptocurrency symbol."""
+    symbol = symbol.upper().strip()
+    # Map common tickers to Kraken format for order book
+    kraken_map = {
+        "BTC": "XBTUSD", "ETH": "ETHUSD", "SOL": "SOLUSD",
+        "BNB": "BNBUSD", "ADA": "ADAUSD", "DOT": "DOTUSD",
+        "AVAX": "AVAXUSD", "MATIC": "MATICUSD", "LINK": "LINKUSD",
+        "UNI": "UNIUSD", "ATOM": "ATOMUSD", "LTC": "LTCUSD",
+        "XRP": "XRPUSD", "DOGE": "XDGUSD", "OKB": "OKBUSD",
+        "ZEC": "ZECUSD", "BCH": "BCHUSD", "XAUT": "XAUTUSD",
+    }
+    ob_symbol = kraken_map.get(symbol, f"{symbol}USD")
+    candles = get_candles(symbol)
+    if not candles:
+        return {"error": f"No data for {symbol}", "asset": symbol}
+    sig = _generate_signal_from_candles(candles, ob_symbol=ob_symbol, funding_symbol=f"{symbol}USDT")
+    sig["asset"] = symbol
+    return sig
