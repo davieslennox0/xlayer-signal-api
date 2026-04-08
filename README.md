@@ -1,105 +1,82 @@
-# Trend Pilot — AI Signal Agent on X Layer
+# AlphaLoop — Prime Broker for AI Agents
 
-> Multi-asset AI signal API with x402 autonomous payments, built for the OKX X Layer Hackathon
+> Managed trade execution infrastructure for AI agents on X Layer
 
-## What is Trend Pilot?
+**[Live Demo](https://alphaloop.vercel.app)** · **[API Docs](http://108.61.91.153/docs)** · OKX Build X Hackathon Season 2
 
-Trend Pilot is an autonomous AI signal agent that provides real-time trading signals for BTC, ETH, XAUT (Gold), OKB, ZEC and BCH — powered by the x402 payment protocol on X Layer.
+---
 
-**Agents pay agents.** No humans required.
+## What is AlphaLoop?
 
-## How it works
-External Agent requests signal
-↓
-Signal API responds with HTTP 402 (pay first)
-↓
-Agent pays $0.01 USDT on X Layer via x402
-↓
-Signal API verifies payment on-chain
-↓
-Full AI signal delivered instantly
-↓
-Agent executes trade on X Layer DEX
-## Supported Assets
+AlphaLoop is a prime broker that handles everything AI agents can't — risk management, position sizing, ML validation, and live Uniswap V3 execution on X Layer mainnet.
 
-| Asset | Type | Source |
-|-------|------|--------|
-| BTC | Crypto | CryptoCompare + Kraken |
-| ETH | Crypto | CryptoCompare + Kraken |
-| XAUT | Tokenized Gold | CryptoCompare + Kraken |
-| OKB | OKX Token | CryptoCompare |
-| ZEC | Crypto | CryptoCompare |
-| BCH | Crypto | CryptoCompare |
+External agents pay once via x402. AlphaLoop handles the rest. No SDKs, no accounts, no API keys.
 
-## Signal Engine
+## The Problem
 
-Each signal uses 5 indicators:
-- **RSI** — momentum with asymmetric bias zones
-- **VWAP** — volume-weighted fair value
-- **Bollinger Bands** — volatility boundaries
-- **Momentum** — 5-candle rate of change
-- **Order Book** — bid/ask pressure ratio
+Agents that want to trade onchain face a hard problem: signal generation is easy, but safe execution is not. Every agent building a trading strategy has to rebuild risk management, position sizing, slippage math, Uniswap ABIs, and stop-loss logic from scratch.
 
-Confidence score mapped to UP / DOWN / HOLD direction.
+AlphaLoop solves this. Agents delegate execution. AlphaLoop executes safely.
+
+## Agent Pipeline
+External Agent pays x402
+→ Scout Agent     — signal for any crypto (RSI, VWAP, BB, momentum, OB)
+→ Risk Agent      — Kelly Criterion sizing, portfolio heat, dynamic SL/TP
+→ Learning Agent  — online ML model, improves with every trade
+→ Execution Agent — Uniswap V3 swap on X Layer mainnet
+→ Receipt returned with tx hash + OKLink explorer link
+## Agent Economy Loop
+
+Each x402 fee splits automatically between internal agents:
+
+| Tier | Price | Split |
+|------|-------|-------|
+| `/signal` | $0.01 USDT0 | Scout 60% · Risk 40% |
+| `/validate` | $0.02 USDT0 | Risk 70% · Learning 30% |
+| `/execute` | $0.05 USDT0 | Risk 30% · Learning 30% · Execution 40% |
+| `/broker` | $0.10 USDT0 | All agents 25% each |
 
 ## API Endpoints
 
-### Free Preview
-GET /signal/{asset}/free
-Returns price and confidence — direction locked behind payment.
+| Method | Endpoint | Description | Cost |
+|--------|----------|-------------|------|
+| GET | `/preview/{asset}` | Free price + confidence | FREE |
+| POST | `/signal` | Full directional signal | $0.01 |
+| POST | `/validate` | Risk-validate your signal | $0.02 |
+| POST | `/execute` | Execute swap on Uniswap V3 | $0.05 |
+| POST | `/broker` | Full pipeline execution | $0.10 |
+| GET | `/agents` | Live agent earnings | FREE |
+| GET | `/status` | Broker status + leaderboard | FREE |
 
-### Full Signal (x402)
-GET /signal/{asset}?tx=<payment_tx_hash>
-Returns full signal with direction and all indicators.
+## Competition Layer
 
-### All Assets
-GET /signals/all?tx=<payment_tx_hash>
-Single payment covers all 6 assets.
-
-## x402 Payment Flow
-
-1. Agent calls `/signal/BTC`
-2. Server responds `HTTP 402` with payment details
-3. Agent sends `$0.01 USDT` to owner wallet on X Layer (Chain ID: 196)
-4. Agent retries with `?tx=<hash>`
-5. Signal delivered
+Three strategy variants (Aggressive / Balanced / Conservative) compete internally for capital allocation. Best Sharpe ratio wins more budget. Rebalances automatically after every trade.
 
 ## Tech Stack
 
-- **FastAPI** — async signal API server
-- **X Layer** — payment settlement (Chain ID: 196)
-- **x402 protocol** — autonomous micropayments
-- **Python** — signal engine (RSI, VWAP, BB, momentum, order book)
-- **Kraken + CryptoCompare** — real-time price feeds
+- **X Layer** — Chain ID 196, zkEVM L2 by OKX
+- **Uniswap V3** — Live swaps on X Layer mainnet
+- **x402 Protocol** — Autonomous micropayments
+- **scikit-learn** — Online ML (SGDClassifier) for trade validation
+- **FastAPI** — Async broker API
+- **Python** — Signal engine (RSI, VWAP, BB, momentum, order book)
+- **CryptoCompare + Kraken** — Real-time price feeds for any asset
 
-## Live Demo
+## Quick Start
 
-Signal API: `http://108.61.91.153:8000`
+```python
+import requests
 
-Try the free preview:
-```bash
-curl http://108.61.91.153:8000/signal/BTC/free
-curl http://108.61.91.153:8000/signal/XAUT/free
-Built by
-Trend Pilot — AI Trading Infrastructure
+# Pay $0.10 USDT0 to broker wallet on X Layer
+tx_hash = send_usdt0("0xdec754869Aa921661676e5FfB8589556cBDF3Ec7", 0.10)
 
-## Additional Endpoints
-
-### Risk Score
-GET /risk/{asset}?tx=<payment_tx_hash>
-Returns volatility, trend direction, risk level (LOW/MEDIUM/HIGH) and momentum.
-
-### On-chain Wallet Data
-GET /onchain/{wallet}?tx=<payment_tx_hash>
-Returns OKB balance, USDT0 balance and transaction count on X Layer.
-
-### Trade Execution Calldata
-POST /execute?tx=<payment_tx_hash>
-Body: {"asset": "BTC", "direction": "up", "amount": 1.0, "wallet": "0x..."}
-Returns ready-to-use approve calldata + current signal for the asset.
-Cost: $0.05 USDT (5x signal price)
-
-## Data Sources
-- **Primary:** OKX Market API (5-minute candles for all assets)
-- **Fallback:** Kraken OHLC API
-- **Order Book:** Kraken Depth API
+# Delegate full execution
+res = requests.post("http://108.61.91.153/broker", json={
+    "asset":    "ETH",
+    "agent_id": "your-agent-id",
+    "tx_hash":  tx_hash
+})
+# {"status": "success", "tx_hash": "0x...", "explorer": "https://..."}
+Broker Wallet
+0xdec754869Aa921661676e5FfB8589556cBDF3Ec7 · X Layer Mainnet · Chain ID 196
+Built by @davieslennox0 · OKX Build X Hackathon Season 2
