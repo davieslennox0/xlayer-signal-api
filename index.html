@@ -227,6 +227,11 @@ footer { position:relative; z-index:1; border-top:1px solid var(--border); paddi
       <div class="ticker-change" id="sol-conf">loading...</div>
     </div>
     <div class="ticker-item">
+      <div class="ticker-symbol">OKB / USD</div>
+      <div class="ticker-price" id="okb-price">—</div>
+      <div class="ticker-change" id="okb-conf">loading...</div>
+    </div>
+    <div class="ticker-item">
       <div class="ticker-symbol">BROKER WALLET</div>
       <div class="ticker-price" style="font-size:0.7rem">0xdec7...Ec7</div>
       <div class="ticker-change up">Chain ID 196</div>
@@ -690,12 +695,14 @@ const board = d.leaderboard || [];
 fetchPreview('BTC','btc-price','btc-conf');
 fetchPreview('ETH','eth-price','eth-conf');
 fetchPreview('SOL','sol-price','sol-conf');
+fetchPreview('OKB','okb-price','okb-conf');
 fetchStatus();
 
 setInterval(()=>{
   fetchPreview('BTC','btc-price','btc-conf');
   fetchPreview('ETH','eth-price','eth-conf');
   fetchPreview('SOL','sol-price','sol-conf');
+fetchPreview('OKB','okb-price','okb-conf');
   fetchStatus();
 }, 30000);
 </script>
