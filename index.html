@@ -20,51 +20,40 @@
   --sans:     'Syne', sans-serif;
 }
 * { margin:0; padding:0; box-sizing:border-box; }
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--sans);
-  overflow-x: hidden;
-}
-body::before {
-  content:'';
-  position:fixed; inset:0;
-  background-image:
-    linear-gradient(rgba(245,166,35,0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(245,166,35,0.03) 1px, transparent 1px);
-  background-size: 40px 40px;
-  pointer-events:none; z-index:0;
-}
-nav {
-  position:fixed; top:0; left:0; right:0; z-index:100;
-  display:flex; align-items:center; justify-content:space-between;
-  padding:0 2rem; height:56px;
-  background:rgba(8,10,14,0.92);
-  backdrop-filter:blur(12px);
-  border-bottom:1px solid var(--border);
-}
-.nav-logo { font-family:var(--mono); font-size:1rem; font-weight:700; color:var(--amber); letter-spacing:0.05em; }
+body { background:var(--bg); color:var(--text); font-family:var(--sans); overflow-x:hidden; }
+body::before { content:''; position:fixed; inset:0; background-image:linear-gradient(rgba(245,166,35,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(245,166,35,0.03) 1px,transparent 1px); background-size:40px 40px; pointer-events:none; z-index:0; }
+
+/* NAV */
+nav { position:fixed; top:0; left:0; right:0; z-index:100; display:flex; align-items:center; justify-content:space-between; padding:0 2rem; height:56px; background:rgba(8,10,14,0.92); backdrop-filter:blur(12px); border-bottom:1px solid var(--border); }
+.nav-logo { font-family:var(--mono); font-size:1rem; font-weight:700; color:var(--amber); letter-spacing:0.05em; cursor:pointer; }
 .nav-logo span { color:var(--text); }
 .nav-status { display:flex; align-items:center; gap:0.5rem; font-family:var(--mono); font-size:0.7rem; color:var(--muted); }
 .dot { width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green); animation:pulse 2s infinite; }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
-.nav-links { display:flex; gap:2rem; list-style:none; }
-.nav-links a { font-family:var(--mono); font-size:0.72rem; color:var(--muted); text-decoration:none; letter-spacing:0.05em; transition:color 0.2s; }
-.nav-links a:hover { color:var(--amber); }
+.nav-links { display:flex; gap:1.5rem; list-style:none; }
+.nav-links a { font-family:var(--mono); font-size:0.72rem; color:var(--muted); text-decoration:none; letter-spacing:0.05em; transition:color 0.2s; cursor:pointer; }
+.nav-links a:hover, .nav-links a.active { color:var(--amber); }
 
-.hero {
-  position:relative; z-index:1;
-  min-height:100vh; display:flex; flex-direction:column;
-  justify-content:center; padding:5rem 2rem 3rem;
-  max-width:1200px; margin:0 auto;
-}
+/* PAGES */
+.page { display:none; }
+.page.active { display:block; }
+
+/* SHARED */
+section { position:relative; z-index:1; max-width:1200px; margin:0 auto; padding:5rem 2rem; }
+.section-label { font-family:var(--mono); font-size:0.65rem; color:var(--amber); letter-spacing:0.15em; text-transform:uppercase; margin-bottom:1rem; }
+.section-title { font-size:clamp(1.8rem,4vw,2.8rem); font-weight:800; margin-bottom:1rem; letter-spacing:-0.02em; color:var(--text); }
+.section-sub { color:var(--muted); max-width:540px; line-height:1.7; margin-bottom:3rem; }
+.divider { height:1px; background:var(--border); position:relative; z-index:1; }
+.notice { background:rgba(245,166,35,0.06); border:1px solid var(--amber-dim); border-radius:6px; padding:0.875rem 1.25rem; font-family:var(--mono); font-size:0.72rem; color:var(--amber); margin-bottom:2rem; display:flex; align-items:center; gap:0.75rem; word-break:break-all; }
+
+/* HERO */
+.hero { position:relative; z-index:1; min-height:100vh; display:flex; flex-direction:column; justify-content:center; padding:5rem 2rem 3rem; max-width:1200px; margin:0 auto; }
 .hero-label { font-family:var(--mono); font-size:0.72rem; color:var(--amber); letter-spacing:0.15em; text-transform:uppercase; margin-bottom:1.5rem; display:flex; align-items:center; gap:0.75rem; }
 .hero-label::before { content:''; width:32px; height:1px; background:var(--amber); }
 h1 { font-size:clamp(2.8rem,7vw,5.5rem); font-weight:800; line-height:1.0; letter-spacing:-0.02em; margin-bottom:1.5rem; color:var(--text); }
 h1 em { font-style:normal; color:var(--amber); position:relative; }
 h1 em::after { content:''; position:absolute; left:0; bottom:-4px; width:100%; height:2px; background:var(--amber); }
 .hero-sub { font-size:1.1rem; color:var(--muted); max-width:520px; line-height:1.7; margin-bottom:3rem; }
-
 .ticker-bar { display:flex; gap:1rem; flex-wrap:wrap; margin-bottom:3rem; }
 .ticker-item { background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:0.75rem 1.25rem; font-family:var(--mono); }
 .ticker-symbol { font-size:0.65rem; color:var(--muted); letter-spacing:0.1em; margin-bottom:0.25rem; }
@@ -72,19 +61,13 @@ h1 em::after { content:''; position:absolute; left:0; bottom:-4px; width:100%; h
 .ticker-change { font-size:0.72rem; color:var(--muted); }
 .up { color:var(--green); }
 .down { color:var(--red); }
-
 .hero-cta { display:flex; gap:1rem; flex-wrap:wrap; }
 .btn-primary { background:var(--amber); color:#000; font-family:var(--mono); font-size:0.8rem; font-weight:700; letter-spacing:0.05em; padding:0.875rem 2rem; border:none; border-radius:4px; cursor:pointer; text-decoration:none; transition:opacity 0.2s; }
 .btn-primary:hover { opacity:0.85; }
 .btn-secondary { background:transparent; color:var(--text); font-family:var(--mono); font-size:0.8rem; letter-spacing:0.05em; padding:0.875rem 2rem; border:1px solid var(--border); border-radius:4px; cursor:pointer; text-decoration:none; transition:border-color 0.2s,color 0.2s; }
 .btn-secondary:hover { border-color:var(--amber); color:var(--amber); }
 
-section { position:relative; z-index:1; max-width:1200px; margin:0 auto; padding:5rem 2rem; }
-.section-label { font-family:var(--mono); font-size:0.65rem; color:var(--amber); letter-spacing:0.15em; text-transform:uppercase; margin-bottom:1rem; }
-.section-title { font-size:clamp(1.8rem,4vw,2.8rem); font-weight:800; margin-bottom:1rem; letter-spacing:-0.02em; color:var(--text); }
-.section-sub { color:var(--muted); max-width:540px; line-height:1.7; margin-bottom:3rem; }
-.divider { height:1px; background:var(--border); position:relative; z-index:1; }
-
+/* AGENTS GRID */
 .agents-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:1.5rem; }
 .agent-card { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:1.75rem; transition:border-color 0.2s,transform 0.2s; position:relative; overflow:hidden; }
 .agent-card::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:var(--amber); transform:scaleX(0); transform-origin:left; transition:transform 0.3s; }
@@ -97,6 +80,7 @@ section { position:relative; z-index:1; max-width:1200px; margin:0 auto; padding
 .agent-earning-label { color:var(--muted); }
 .agent-fee { font-family:var(--mono); font-size:0.7rem; color:var(--amber); background:rgba(245,166,35,0.1); padding:0.2rem 0.6rem; border-radius:3px; margin-top:0.75rem; display:inline-block; }
 
+/* FLOW */
 .flow-steps { display:grid; gap:0; }
 .flow-step { display:grid; grid-template-columns:3rem 1fr; gap:1.5rem; padding:1.5rem 0; border-bottom:1px solid var(--border); }
 .flow-step:last-child { border-bottom:none; }
@@ -105,6 +89,7 @@ section { position:relative; z-index:1; max-width:1200px; margin:0 auto; padding
 .flow-content p { font-size:0.875rem; color:var(--muted); line-height:1.7; }
 .flow-tag { font-family:var(--mono); font-size:0.65rem; color:var(--amber); letter-spacing:0.1em; margin-top:0.5rem; display:block; }
 
+/* STATS */
 .stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:1rem; margin-bottom:3rem; }
 .stat-card { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:1.5rem; }
 .stat-label { font-family:var(--mono); font-size:0.65rem; color:var(--muted); letter-spacing:0.1em; text-transform:uppercase; margin-bottom:0.75rem; }
@@ -112,6 +97,7 @@ section { position:relative; z-index:1; max-width:1200px; margin:0 auto; padding
 .stat-value.green { color:var(--green); }
 .stat-value.amber { color:var(--amber); }
 
+/* LEADERBOARD */
 .leaderboard { background:var(--surface); border:1px solid var(--border); border-radius:8px; overflow:hidden; }
 .lb-header { display:grid; grid-template-columns:2rem 1fr 5rem 5rem 5rem 6rem; gap:1rem; padding:0.875rem 1.5rem; border-bottom:1px solid var(--border); font-family:var(--mono); font-size:0.65rem; color:var(--muted); letter-spacing:0.08em; text-transform:uppercase; }
 .lb-row { display:grid; grid-template-columns:2rem 1fr 5rem 5rem 5rem 6rem; gap:1rem; padding:1rem 1.5rem; border-bottom:1px solid var(--border); font-family:var(--mono); font-size:0.8rem; color:var(--text); transition:background 0.15s; }
@@ -123,9 +109,9 @@ section { position:relative; z-index:1; max-width:1200px; margin:0 auto; padding
 .alloc-bar { height:4px; background:var(--border); border-radius:2px; margin-top:0.4rem; overflow:hidden; }
 .alloc-fill { height:100%; background:var(--amber); border-radius:2px; transition:width 1s ease; }
 
+/* TRADE FEED */
 .trade-feed { background:var(--surface); border:1px solid var(--border); border-radius:8px; overflow:hidden; max-height:360px; overflow-y:auto; }
 .trade-feed::-webkit-scrollbar { width:4px; }
-.trade-feed::-webkit-scrollbar-track { background:var(--border); }
 .trade-feed::-webkit-scrollbar-thumb { background:var(--amber-dim); }
 .trade-item { display:flex; align-items:center; justify-content:space-between; padding:0.875rem 1.5rem; border-bottom:1px solid var(--border); font-family:var(--mono); font-size:0.75rem; color:var(--text); }
 .trade-item:last-child { border-bottom:none; }
@@ -138,9 +124,10 @@ section { position:relative; z-index:1; max-width:1200px; margin:0 auto; padding
 .trade-time { color:var(--muted); font-size:0.65rem; }
 .empty-feed { padding:3rem; text-align:center; font-family:var(--mono); font-size:0.75rem; color:var(--muted); }
 
+/* API GRID */
 .api-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:1.25rem; }
 .api-card { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:1.5rem; }
-.api-method { font-family:var(--mono); font-size:0.65rem; font-weight:700; letter-spacing:0.1em; padding:0.2rem 0.6rem; border-radius:3px; margin-right:0.5rem; display:inline-block; margin-bottom:0.75rem; }
+.api-method { font-family:var(--mono); font-size:0.65rem; font-weight:700; letter-spacing:0.1em; padding:0.2rem 0.6rem; border-radius:3px; display:inline-block; margin-bottom:0.75rem; }
 .get  { background:rgba(0,210,106,0.1); color:var(--green); }
 .post { background:rgba(245,166,35,0.1); color:var(--amber); }
 .api-path { font-family:var(--mono); font-size:0.9rem; color:var(--text); font-weight:700; margin-bottom:0.5rem; }
@@ -148,18 +135,43 @@ section { position:relative; z-index:1; max-width:1200px; margin:0 auto; padding
 .api-price { font-family:var(--mono); font-size:0.72rem; color:var(--amber); }
 .api-price span { color:var(--muted); }
 
+/* CODE */
 .code-block { background:#0A0C0F; border:1px solid var(--border); border-radius:6px; padding:1.25rem 1.5rem; font-family:var(--mono); font-size:0.75rem; line-height:1.8; overflow-x:auto; margin-top:1rem; color:#8B9CB0; }
 .code-block .kw { color:var(--amber); }
 .code-block .str { color:var(--green); }
 .code-block .cm { color:var(--muted); }
 
-.notice { background:rgba(245,166,35,0.06); border:1px solid var(--amber-dim); border-radius:6px; padding:0.875rem 1.25rem; font-family:var(--mono); font-size:0.72rem; color:var(--amber); margin-bottom:2rem; display:flex; align-items:center; gap:0.75rem; word-break:break-all; }
+/* DOCS PAGE */
+.endpoint-block { background:var(--surface); border:1px solid var(--border); border-radius:8px; margin-bottom:1.5rem; overflow:hidden; }
+.endpoint-header { display:flex; align-items:center; gap:1rem; padding:1.25rem 1.5rem; border-bottom:1px solid var(--border); }
+.endpoint-body { padding:1.5rem; }
+.endpoint-body p { color:var(--muted); font-size:0.875rem; line-height:1.7; margin-bottom:1rem; }
+.param-table { width:100%; border-collapse:collapse; font-family:var(--mono); font-size:0.75rem; margin-top:0.75rem; }
+.param-table th { text-align:left; color:var(--muted); font-size:0.65rem; letter-spacing:0.1em; padding:0.5rem 0.75rem; border-bottom:1px solid var(--border); }
+.param-table td { padding:0.6rem 0.75rem; border-bottom:1px solid var(--border); color:var(--text); }
+.param-table tr:last-child td { border-bottom:none; }
+.param-name { color:var(--amber); }
+.param-type { color:var(--muted); }
+.param-req { color:var(--green); font-size:0.65rem; }
 
+/* AGENTS PAGE */
+.agent-live-card { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:1.5rem; margin-bottom:1rem; display:grid; grid-template-columns:1fr 1fr 1fr; gap:1rem; align-items:center; }
+.agent-live-name { font-size:1.1rem; font-weight:700; color:var(--text); }
+.agent-live-role { font-size:0.8rem; color:var(--muted); margin-top:0.25rem; }
+.agent-live-stat { text-align:center; }
+.agent-live-stat-val { font-family:var(--mono); font-size:1.2rem; font-weight:700; }
+.agent-live-stat-label { font-family:var(--mono); font-size:0.6rem; color:var(--muted); letter-spacing:0.1em; margin-top:0.25rem; }
+.agent-live-status { text-align:right; }
+.badge { font-family:var(--mono); font-size:0.65rem; padding:0.25rem 0.75rem; border-radius:3px; display:inline-block; }
+.badge-active { background:rgba(0,210,106,0.1); color:var(--green); }
+.badge-wait { background:rgba(139,156,176,0.1); color:var(--muted); }
+
+/* FOOTER */
 footer { position:relative; z-index:1; border-top:1px solid var(--border); padding:2rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; max-width:1200px; margin:0 auto; }
 .footer-logo { font-family:var(--mono); font-size:0.85rem; color:var(--amber); }
-.footer-meta { font-family:var(--mono); font-size:0.65rem; color:var(--muted); letter-spacing:0.05em; }
+.footer-meta { font-family:var(--mono); font-size:0.65rem; color:var(--muted); }
 .footer-links { display:flex; gap:1.5rem; list-style:none; }
-.footer-links a { font-family:var(--mono); font-size:0.65rem; color:var(--muted); text-decoration:none; transition:color 0.2s; }
+.footer-links a { font-family:var(--mono); font-size:0.65rem; color:var(--muted); text-decoration:none; cursor:pointer; transition:color 0.2s; }
 .footer-links a:hover { color:var(--amber); }
 
 @media(max-width:768px){
@@ -167,6 +179,8 @@ footer { position:relative; z-index:1; border-top:1px solid var(--border); paddi
   .lb-header,.lb-row { grid-template-columns:2rem 1fr 4rem 4rem; }
   .lb-header>*:nth-child(4),.lb-header>*:nth-child(5),
   .lb-row>*:nth-child(4),.lb-row>*:nth-child(5) { display:none; }
+  .agent-live-card { grid-template-columns:1fr; }
+  .agent-live-status { text-align:left; }
   footer { flex-direction:column; text-align:center; }
 }
 </style>
@@ -174,12 +188,13 @@ footer { position:relative; z-index:1; border-top:1px solid var(--border); paddi
 <body>
 
 <nav>
-  <div class="nav-logo">Alpha<span>Loop</span></div>
+  <div class="nav-logo" onclick="showPage('home')">Alpha<span>Loop</span></div>
   <ul class="nav-links">
-    <li><a href="#agents">Agents</a></li>
-    <li><a href="#stats">Live</a></li>
-    <li><a href="#how">How It Works</a></li>
-    <li><a href="#api">API</a></li>
+    <li><a onclick="showPage('home')" id="nav-home" class="active">Home</a></li>
+    <li><a onclick="showPage('home');scrollTo('#agents')" id="nav-agents-home">Agents</a></li>
+    <li><a onclick="showPage('home');scrollTo('#stats')" id="nav-stats">Live</a></li>
+    <li><a onclick="showPage('docs')" id="nav-docs">API Docs</a></li>
+    <li><a onclick="showPage('agents')" id="nav-agents">Agent Status</a></li>
   </ul>
   <div class="nav-status">
     <div class="dot"></div>
@@ -187,15 +202,13 @@ footer { position:relative; z-index:1; border-top:1px solid var(--border); paddi
   </div>
 </nav>
 
+<!-- ═══════════════ HOME PAGE ═══════════════ -->
+<div id="page-home" class="page active">
+
 <div class="hero">
   <div class="hero-label">Prime Broker · AI Agent Infrastructure · X Layer</div>
   <h1>The execution layer<br>for <em>AI agents</em><br>that trade.</h1>
-  <p class="hero-sub">
-    AlphaLoop handles everything external agents can't —
-    risk management, position sizing, ML validation, and
-    live Uniswap V3 execution on X Layer.
-    Pay once via x402. Get back a signed trade receipt.
-  </p>
+  <p class="hero-sub">AlphaLoop handles everything external agents can't — risk management, position sizing, ML validation, and live Uniswap V3 execution on X Layer. Pay once via x402. Get back a signed trade receipt.</p>
 
   <div class="ticker-bar">
     <div class="ticker-item">
@@ -221,18 +234,17 @@ footer { position:relative; z-index:1; border-top:1px solid var(--border); paddi
   </div>
 
   <div class="hero-cta">
-    <a href="#api" class="btn-primary">Connect Your Agent →</a>
-    <a href="http://108.61.91.153/docs" target="_blank" class="btn-secondary">API Docs</a>
+    <a onclick="showPage('docs')" class="btn-primary">Connect Your Agent →</a>
+    <a onclick="showPage('agents')" class="btn-secondary">Agent Status</a>
   </div>
 </div>
 
 <div class="divider"></div>
 
 <section id="agents">
-  <div class="section-label">Internal Agent Network</div>
+<div class="section-label">Internal Agent Network</div>
   <h2 class="section-title">Four agents.<br>One pipeline.</h2>
   <p class="section-sub">Every trade request routes through all four agents automatically. Each agent earns a cut of the x402 fee — onchain, every time.</p>
-
   <div class="agents-grid">
     <div class="agent-card">
       <div class="agent-num">AGENT 01</div>
@@ -268,9 +280,8 @@ footer { position:relative; z-index:1; border-top:1px solid var(--border); paddi
 <div class="divider"></div>
 
 <section id="stats">
-  <div class="section-label">Live Dashboard</div>
+<div class="section-label">Live Dashboard</div>
   <h2 class="section-title">Real-time performance.</h2>
-
   <div class="stats-grid">
     <div class="stat-card"><div class="stat-label">Total Trades</div><div class="stat-value amber" id="stat-trades">0</div></div>
     <div class="stat-card"><div class="stat-label">Win Rate</div><div class="stat-value green" id="stat-winrate">—</div></div>
@@ -282,9 +293,7 @@ footer { position:relative; z-index:1; border-top:1px solid var(--border); paddi
 
   <div class="section-label" style="margin-bottom:1rem">Strategy Competition</div>
   <div class="leaderboard">
-    <div class="lb-header">
-      <div>#</div><div>Strategy</div><div>Win Rate</div><div>Sharpe</div><div>PnL</div><div>Allocation</div>
-    </div>
+    <div class="lb-header"><div>#</div><div>Strategy</div><div>Win Rate</div><div>Sharpe</div><div>PnL</div><div>Allocation</div></div>
     <div id="lb-rows">
       <div class="lb-row"><div class="lb-rank">1</div><div class="lb-strategy">Aggressive</div><div>—</div><div>—</div><div>—</div><div><div class="lb-alloc">33.3%</div><div class="alloc-bar"><div class="alloc-fill" style="width:33%"></div></div></div></div>
       <div class="lb-row"><div class="lb-rank">2</div><div class="lb-strategy">Balanced</div><div>—</div><div>—</div><div>—</div><div><div class="lb-alloc">33.3%</div><div class="alloc-bar"><div class="alloc-fill" style="width:33%"></div></div></div></div>
@@ -304,89 +313,317 @@ footer { position:relative; z-index:1; border-top:1px solid var(--border); paddi
   <div class="section-label">Architecture</div>
   <h2 class="section-title">Your agent delegates.<br>AlphaLoop executes.</h2>
   <p class="section-sub">External agents don't need to know about Kelly Criterion, Uniswap ABIs, or slippage math. They just pay and delegate.</p>
-
   <div class="flow-steps">
-    <div class="flow-step">
-      <div class="flow-num">01</div>
-      <div class="flow-content"><h3>Agent sends x402 payment</h3><p>Any AI agent sends USDT0 to the broker wallet on X Layer. No accounts, no API keys, no OAuth. Just an on-chain payment.</p><span class="flow-tag">→ x402 PROTOCOL · X LAYER MAINNET · CHAIN ID 196</span></div>
-    </div>
-    <div class="flow-step">
-      <div class="flow-num">02</div>
-      <div class="flow-content"><h3>Scout Agent generates signal</h3><p>Real-time analysis across 5 indicators for any crypto asset. RSI, VWAP, Bollinger Bands, momentum, and live order book pressure.</p><span class="flow-tag">→ CRYPTOCOMPARE + KRAKEN FEEDS · ANY ASSET</span></div>
-    </div>
-    <div class="flow-step">
-      <div class="flow-num">03</div>
-      <div class="flow-content"><h3>Risk Agent validates and sizes</h3><p>Kelly Criterion determines optimal position size. Portfolio heat check prevents overexposure. Dynamic SL/TP set from ATR proxy.</p><span class="flow-tag">→ KELLY CRITERION · PORTFOLIO HEAT · DYNAMIC SL/TP</span></div>
-    </div>
-    <div class="flow-step">
-      <div class="flow-num">04</div>
-      <div class="flow-content"><h3>Learning Agent approves</h3><p>Online ML model trained on every previous trade outcome. Blends base confidence with learned win probability. Improves with every trade.</p><span class="flow-tag">→ SGDCLASSIFIER · ONLINE LEARNING · AUTO-RETRAINING</span></div>
-    </div>
-    <div class="flow-step">
-      <div class="flow-num">05</div>
-      <div class="flow-content"><h3>Execution Agent swaps on Uniswap V3</h3><p>Real swap on Uniswap V3 on X Layer. OKB for gas, USDT0 for trading. Returns tx hash and OKLink explorer link.</p><span class="flow-tag">→ UNISWAP V3 · X LAYER · OKLINK VERIFIED</span></div>
-    </div>
-    <div class="flow-step">
-      <div class="flow-num">06</div>
-      <div class="flow-content"><h3>Fee split to all agents onchain</h3><p>Each agent earns a fraction of every fee. Scout, Risk, Learning, and Execution agents each accumulate earnings transparently.</p><span class="flow-tag">→ AGENT ECONOMY LOOP · x402 SPLITS · TRANSPARENT</span></div>
-    </div>
+    <div class="flow-step"><div class="flow-num">01</div><div class="flow-content"><h3>Agent sends x402 payment</h3><p>Any AI agent sends USDT0 to the broker wallet on X Layer. No accounts, no API keys, no OAuth. Just an on-chain payment.</p><span class="flow-tag">→ x402 PROTOCOL · X LAYER MAINNET · CHAIN ID 196</span></div></div>
+    <div class="flow-step"><div class="flow-num">02</div><div class="flow-content"><h3>Scout Agent generates signal</h3><p>Real-time analysis across 5 indicators for any crypto asset. RSI, VWAP, Bollinger Bands, momentum, and live order book pressure.</p><span class="flow-tag">→ CRYPTOCOMPARE + KRAKEN FEEDS · ANY ASSET</span></div></div>
+    <div class="flow-step"><div class="flow-num">03</div><div class="flow-content"><h3>Risk Agent validates and sizes</h3><p>Kelly Criterion determines optimal position size. Portfolio heat check prevents overexposure. Dynamic SL/TP set from ATR proxy.</p><span class="flow-tag">→ KELLY CRITERION · PORTFOLIO HEAT · DYNAMIC SL/TP</span></div></div>
+    <div class="flow-step"><div class="flow-num">04</div><div class="flow-content"><h3>Learning Agent approves</h3><p>Online ML model trained on every previous trade outcome. Blends base confidence with learned win probability. Improves every cycle.</p><span class="flow-tag">→ SGDCLASSIFIER · ONLINE LEARNING · AUTO-RETRAINING</span></div></div>
+    <div class="flow-step"><div class="flow-num">05</div><div class="flow-content"><h3>Execution Agent swaps on Uniswap V3</h3><p>Real swap on Uniswap V3 on X Layer. OKB for gas, USDT0 for trading. Returns tx hash and OKLink explorer link.</p><span class="flow-tag">→ UNISWAP V3 · X LAYER · OKLINK VERIFIED</span></div></div>
+    <div class="flow-step"><div class="flow-num">06</div><div class="flow-content"><h3>Fee split to all agents onchain</h3><p>Each agent earns a fraction of every fee automatically. The agent economy loop running on X Layer mainnet.</p><span class="flow-tag">→ AGENT ECONOMY LOOP · x402 SPLITS · TRANSPARENT</span></div></div>
   </div>
 </section>
 
 <div class="divider"></div>
 
-<section id="api">
-  <div class="section-label">Integration</div>
-  <h2 class="section-title">Four tiers.<br>One broker.</h2>
-  <p class="section-sub">Connect your agent to AlphaLoop with a single HTTP call. Pay x402, get execution. No SDK required.</p>
-
-  <div class="notice">⬡ &nbsp;Broker wallet: 0xdec754869Aa921661676e5FfB8589556cBDF3Ec7 &nbsp;·&nbsp; X Layer Chain ID: 196 &nbsp;·&nbsp; Token: USDT0</div>
-
-  <div class="api-grid">
-    <div class="api-card"><div><span class="api-method get">GET</span></div><div class="api-path">/preview/{asset}</div><div class="api-desc">Free price + confidence for any crypto. Direction locked behind payment.</div><div class="api-price"><span>Cost: </span>FREE</div></div>
-    <div class="api-card"><div><span class="api-method post">POST</span></div><div class="api-path">/signal</div><div class="api-desc">Scout + Risk Agent signal. Full direction, confidence, RSI, momentum, tradeable flag.</div><div class="api-price"><span>Cost: </span>$0.01 USDT0</div></div>
-    <div class="api-card"><div><span class="api-method post">POST</span></div><div class="api-path">/validate</div><div class="api-desc">Submit your own signal for Risk Agent validation. Get position sizing and SL/TP.</div><div class="api-price"><span>Cost: </span>$0.02 USDT0</div></div>
-    <div class="api-card"><div><span class="api-method post">POST</span></div><div class="api-path">/execute</div><div class="api-desc">Risk + Learning + Uniswap V3 execution. Returns on-chain tx hash.</div><div class="api-price"><span>Cost: </span>$0.05 USDT0</div></div>
-    <div class="api-card"><div><span class="api-method post">POST</span></div><div class="api-path">/broker</div><div class="api-desc">Full pipeline. Scout → Risk → Learning → Uniswap. Maximum automation.</div><div class="api-price"><span>Cost: </span>$0.10 USDT0</div></div>
-    <div class="api-card"><div><span class="api-method get">GET</span></div><div class="api-path">/agents</div><div class="api-desc">Live agent status, earnings, roles, and wallet addresses.</div><div class="api-price"><span>Cost: </span>FREE</div></div>
-  </div>
-
-  <div style="margin-top:2rem">
-    <div class="section-label" style="margin-bottom:1rem">Example: Agent requests full execution</div>
-    <div class="code-block">
+<section>
+  <div class="section-label">Quick Start</div>
+  <h2 class="section-title">Connect in minutes.</h2>
+  <div class="notice">⬡ &nbsp;Broker wallet: 0xdec754869Aa921661676e5FfB8589556cBDF3Ec7 &nbsp;·&nbsp; Chain ID: 196 &nbsp;·&nbsp; Token: USDT0</div>
+  <div class="code-block">
 <span class="cm"># Any AI agent — Python example</span>
 <span class="kw">import</span> requests
 
 <span class="cm"># Step 1: pay $0.10 USDT0 to broker wallet on X Layer</span>
-tx_hash = send_usdt0(<span class="str">"0xdec754...cBDF3Ec7"</span>, amount=<span class="str">0.10</span>)
+tx_hash = send_usdt0(<span class="str">"0xdec754869Aa921661676e5FfB8589556cBDF3Ec7"</span>, <span class="str">0.10</span>)
 
 <span class="cm"># Step 2: delegate full execution to AlphaLoop</span>
 res = requests.post(<span class="str">"http://108.61.91.153/broker"</span>, json={
     <span class="str">"asset"</span>:    <span class="str">"ETH"</span>,
-    <span class="str">"agent_id"</span>: <span class="str">"my-agent-001"</span>,
+    <span class="str">"agent_id"</span>: <span class="str">"your-agent-id"</span>,
     <span class="str">"tx_hash"</span>:  tx_hash
 })
-
-<span class="cm"># { "status": "success", "tx_hash": "0x...", "explorer": "..." }</span>
+<span class="cm"># {"status":"success","tx_hash":"0x...","explorer":"https://..."}</span>
 print(res.json())
-    </div>
   </div>
+  <br>
+  <a onclick="showPage('docs')" class="btn-primary">View Full API Docs →</a>
 </section>
 
 <div class="divider"></div>
+<footer>
+<div class="footer-logo">AlphaLoop</div>
+  <ul class="footer-links">
+    <li><a onclick="showPage('docs')">API Docs</a></li>
+    <li><a onclick="showPage('agents')">Agent Status</a></li>
+    <li><a href="https://github.com/davieslennox0/xlayer-signal-api" target="_blank">GitHub</a></li>
+  </ul>
+  <div class="footer-meta">Built on X Layer · x402 · OKX Build X Hackathon S2</div>
+</footer>
+</div>
 
+<!-- ═══════════════ DOCS PAGE ═══════════════ -->
+<div id="page-docs" class="page">
+<section style="padding-top:6rem">
+  <div class="section-label">API Reference</div>
+  <h2 class="section-title">AlphaLoop API Docs</h2>
+  <p class="section-sub">Base URL: <span style="font-family:var(--mono);color:var(--amber)">http://108.61.91.153</span> &nbsp;·&nbsp; All payments in USDT0 on X Layer (Chain ID 196)</p>
+
+  <div class="notice">⬡ &nbsp;Broker wallet: 0xdec754869Aa921661676e5FfB8589556cBDF3Ec7 &nbsp;·&nbsp; Send payment → get tx_hash → include in request body</div>
+
+  <!-- GET /preview -->
+  <div class="endpoint-block">
+    <div class="endpoint-header">
+      <span class="api-method get">GET</span>
+      <span style="font-family:var(--mono);font-size:1rem;color:var(--text)">/preview/{asset}</span>
+      <span style="font-family:var(--mono);font-size:0.72rem;color:var(--green);margin-left:auto">FREE</span>
+    </div>
+    <div class="endpoint-body">
+      <p>Returns live price and confidence score for any crypto asset. Direction is locked behind payment.</p>
+      <div class="code-block">
+GET /preview/BTC
+GET /preview/ETH
+GET /preview/SOL
+
+<span class="cm">// Response</span>
+{
+  <span class="str">"asset"</span>: <span class="str">"BTC"</span>,
+  <span class="str">"price"</span>: 71477.46,
+  <span class="str">"confidence"</span>: 67.2,
+  <span class="str">"direction"</span>: <span class="str">"*** PAY $0.01 USDT0 TO UNLOCK ***"</span>,
+  <span class="str">"payment_address"</span>: <span class="str">"0xdec754869Aa921661676e5FfB8589556cBDF3Ec7"</span>,
+  <span class="str">"chain_id"</span>: 196
+}
+      </div>
+    </div>
+  </div>
+
+  <!-- POST /signal -->
+  <div class="endpoint-block">
+    <div class="endpoint-header">
+      <span class="api-method post">POST</span>
+      <span style="font-family:var(--mono);font-size:1rem;color:var(--text)">/signal</span>
+      <span style="font-family:var(--mono);font-size:0.72rem;color:var(--amber);margin-left:auto">$0.01 USDT0</span>
+    </div>
+    <div class="endpoint-body">
+      <p>Full directional signal from Scout Agent. Returns direction, RSI, momentum, VWAP, and tradeable flag.</p>
+      <table class="param-table">
+        <tr><th>Parameter</th><th>Type</th><th>Required</th><th>Description</th></tr>
+        <tr><td class="param-name">asset</td><td class="param-type">string</td><td class="param-req">yes</td><td>Any crypto ticker e.g. BTC, ETH, SOL</td></tr>
+        <tr><td class="param-name">tx_hash</td><td class="param-type">string</td><td class="param-req">yes</td><td>USDT0 payment tx hash on X Layer</td></tr>
+      </table>
+      <div class="code-block">
+<span class="cm">// Response</span>
+{
+  <span class="str">"asset"</span>: <span class="str">"BTC"</span>,
+  <span class="str">"price"</span>: 71477.46,
+  <span class="str">"direction"</span>: <span class="str">"UP"</span>,
+  <span class="str">"confidence"</span>: 67.2,
+  <span class="str">"rsi"</span>: 58.3,
+  <span class="str">"momentum"</span>: 0.12,
+  <span class="str">"tradeable"</span>: <span class="kw">true</span>,
+  <span class="str">"agent_earnings"</span>: { <span class="str">"scout"</span>: 0.006, <span class="str">"risk"</span>: 0.004 }
+}
+      </div>
+    </div>
+  </div>
+
+  <!-- POST /validate -->
+  <div class="endpoint-block">
+    <div class="endpoint-header">
+      <span class="api-method post">POST</span>
+      <span style="font-family:var(--mono);font-size:1rem;color:var(--text)">/validate</span>
+      <span style="font-family:var(--mono);font-size:0.72rem;color:var(--amber);margin-left:auto">$0.02 USDT0</span>
+    </div>
+    <div class="endpoint-body">
+      <p>Submit your own signal for Risk Agent validation. Returns Kelly Criterion position size, stop loss, and take profit levels.</p>
+      <table class="param-table">
+        <tr><th>Parameter</th><th>Type</th><th>Required</th><th>Description</th></tr>
+        <tr><td class="param-name">asset</td><td class="param-type">string</td><td class="param-req">yes</td><td>Crypto ticker</td></tr>
+        <tr><td class="param-name">direction</td><td class="param-type">string</td><td class="param-req">yes</td><td>UP or DOWN</td></tr>
+        <tr><td class="param-name">confidence</td><td class="param-type">float</td><td class="param-req">yes</td><td>0–100 confidence score</td></tr>
+        <tr><td class="param-name">tx_hash</td><td class="param-type">string</td><td class="param-req">yes</td><td>Payment tx hash</td></tr>
+      </table>
+      <div class="code-block">
+<span class="cm">// Response</span>
+{
+  <span class="str">"approved"</span>: <span class="kw">true</span>,
+  <span class="str">"suggested_size_usdt"</span>: 1.25,
+  <span class="str">"stop_loss_pct"</span>: 1.2,
+  <span class="str">"take_profit_pct"</span>: 2.4,
+  <span class="str">"agent_earnings"</span>: { <span class="str">"risk"</span>: 0.014, <span class="str">"learning"</span>: 0.006 }
+}
+      </div>
+    </div>
+  </div>
+
+  <!-- POST /execute -->
+<div class="endpoint-block">
+    <div class="endpoint-header">
+      <span class="api-method post">POST</span>
+      <span style="font-family:var(--mono);font-size:1rem;color:var(--text)">/execute</span>
+      <span style="font-family:var(--mono);font-size:0.72rem;color:var(--amber);margin-left:auto">$0.05 USDT0</span>
+    </div>
+    <div class="endpoint-body">
+      <p>Execute a swap on Uniswap V3 on X Layer. Risk Agent validates, Learning Agent approves, Execution Agent swaps.</p>
+      <table class="param-table">
+        <tr><th>Parameter</th><th>Type</th><th>Required</th><th>Description</th></tr>
+        <tr><td class="param-name">asset</td><td class="param-type">string</td><td class="param-req">yes</td><td>Crypto ticker</td></tr>
+        <tr><td class="param-name">direction</td><td class="param-type">string</td><td class="param-req">yes</td><td>UP or DOWN</td></tr>
+        <tr><td class="param-name">amount_usdt</td><td class="param-type">float</td><td class="param-req">yes</td><td>Trade size in USDT0</td></tr>
+        <tr><td class="param-name">agent_id</td><td class="param-type">string</td><td class="param-req">yes</td><td>Your agent identifier</td></tr>
+        <tr><td class="param-name">tx_hash</td><td class="param-type">string</td><td class="param-req">yes</td><td>Payment tx hash</td></tr>
+      </table>
+      <div class="code-block">
+<span class="cm">// Response</span>
+{
+  <span class="str">"status"</span>: <span class="str">"success"</span>,
+  <span class="str">"tx_hash"</span>: <span class="str">"0xabc123..."</span>,
+  <span class="str">"explorer"</span>: <span class="str">"https://www.oklink.com/xlayer/tx/0xabc123"</span>,
+  <span class="str">"asset"</span>: <span class="str">"ETH"</span>,
+  <span class="str">"direction"</span>: <span class="str">"UP"</span>,
+  <span class="str">"size_usdt"</span>: 1.25
+}
+      </div>
+    </div>
+  </div>
+
+  <!-- POST /broker -->
+  <div class="endpoint-block">
+    <div class="endpoint-header">
+      <span class="api-method post">POST</span>
+      <span style="font-family:var(--mono);font-size:1rem;color:var(--text)">/broker</span>
+      <span style="font-family:var(--mono);font-size:0.72rem;color:var(--amber);margin-left:auto">$0.10 USDT0</span>
+    </div>
+    <div class="endpoint-body">
+      <p>Full pipeline. AlphaLoop generates the signal, validates, approves, and executes — all autonomously. Maximum automation for external agents.</p>
+      <table class="param-table">
+        <tr><th>Parameter</th><th>Type</th><th>Required</th><th>Description</th></tr>
+        <tr><td class="param-name">asset</td><td class="param-type">string</td><td class="param-req">yes</td><td>Crypto ticker</td></tr>
+        <tr><td class="param-name">agent_id</td><td class="param-type">string</td><td class="param-req">yes</td><td>Your agent identifier</td></tr>
+        <tr><td class="param-name">tx_hash</td><td class="param-type">string</td><td class="param-req">yes</td><td>Payment tx hash</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- GET /agents -->
+  <div class="endpoint-block">
+    <div class="endpoint-header">
+      <span class="api-method get">GET</span>
+      <span style="font-family:var(--mono);font-size:1rem;color:var(--text)">/agents</span>
+      <span style="font-family:var(--mono);font-size:0.72rem;color:var(--green);margin-left:auto">FREE</span>
+    </div>
+    <div class="endpoint-body">
+      <p>Live agent status, earnings, and roles.</p>
+    </div>
+  </div>
+
+  <!-- GET /status -->
+  <div class="endpoint-block">
+    <div class="endpoint-header">
+      <span class="api-method get">GET</span>
+      <span style="font-family:var(--mono);font-size:1rem;color:var(--text)">/status</span>
+      <span style="font-family:var(--mono);font-size:0.72rem;color:var(--green);margin-left:auto">FREE</span>
+    </div>
+    <div class="endpoint-body">
+      <p>Broker status, portfolio value, performance stats, strategy leaderboard, and agent earnings.</p>
+    </div>
+  </div>
+
+</section>
+<div class="divider"></div>
 <footer>
   <div class="footer-logo">AlphaLoop</div>
   <ul class="footer-links">
-    <li><a href="http://108.61.91.153/docs" target="_blank">API Docs</a></li>
+    <li><a onclick="showPage('home')">Home</a></li>
+    <li><a onclick="showPage('agents')">Agent Status</a></li>
     <li><a href="https://github.com/davieslennox0/xlayer-signal-api" target="_blank">GitHub</a></li>
-    <li><a href="http://108.61.91.153/agents" target="_blank">Agent Status</a></li>
   </ul>
-  <div class="footer-meta">Built on X Layer · Powered by x402 · OKX Build X Hackathon S2</div>
+  <div class="footer-meta">Built on X Layer · x402 · OKX Build X Hackathon S2</div>
 </footer>
+</div>
+
+<!-- ═══════════════ AGENTS PAGE ═══════════════ -->
+<div id="page-agents" class="page">
+<section style="padding-top:6rem">
+  <div class="section-label">Live Agent Network</div>
+  <h2 class="section-title">Agent Status</h2>
+  <p class="section-sub">Four autonomous agents running on X Layer mainnet. Each earns a share of every x402 fee processed through AlphaLoop.</p>
+
+  <div id="agent-live-cards">
+    <div class="agent-live-card">
+      <div><div class="agent-live-name">Scout Agent</div><div class="agent-live-role">Signal generation · Any crypto asset</div></div>
+      <div class="agent-live-stat"><div class="agent-live-stat-val green" id="al-scout-earn">$0.000000</div><div class="agent-live-stat-label">TOTAL EARNED</div></div>
+      <div class="agent-live-status"><span class="badge badge-active">● ACTIVE</span></div>
+    </div>
+    <div class="agent-live-card">
+      <div><div class="agent-live-name">Risk Agent</div><div class="agent-live-role">Kelly sizing · Portfolio heat · SL/TP</div></div>
+      <div class="agent-live-stat"><div class="agent-live-stat-val green" id="al-risk-earn">$0.000000</div><div class="agent-live-stat-label">TOTAL EARNED</div></div>
+      <div class="agent-live-status"><span class="badge badge-active">● ACTIVE</span></div>
+    </div>
+    <div class="agent-live-card">
+      <div><div class="agent-live-name">Learning Agent</div><div class="agent-live-role">Online ML · SGDClassifier · Auto-retrain</div></div>
+      <div class="agent-live-stat"><div class="agent-live-stat-val green" id="al-learning-earn">$0.000000</div><div class="agent-live-stat-label">TOTAL EARNED</div></div>
+      <div class="agent-live-status"><span class="badge badge-active">● ACTIVE</span></div>
+    </div>
+    <div class="agent-live-card">
+      <div><div class="agent-live-name">Execution Agent</div><div class="agent-live-role">Uniswap V3 · X Layer · OKLink verified</div></div>
+      <div class="agent-live-stat"><div class="agent-live-stat-val green" id="al-execution-earn">$0.000000</div><div class="agent-live-stat-label">TOTAL EARNED</div></div>
+      <div class="agent-live-status"><span class="badge badge-active">● ACTIVE</span></div>
+    </div>
+  </div>
+
+  <div style="margin-top:3rem">
+    <div class="section-label" style="margin-bottom:1rem">Broker Info</div>
+    <div class="notice">⬡ &nbsp;Wallet: 0xdec754869Aa921661676e5FfB8589556cBDF3Ec7 &nbsp;·&nbsp; Chain: X Layer (196) &nbsp;·&nbsp; DEX: Uniswap V3</div>
+  </div>
+
+  <div style="margin-top:2rem">
+ <div class="section-label" style="margin-bottom:1rem">Strategy Leaderboard</div>
+    <div class="leaderboard">
+      <div class="lb-header"><div>#</div><div>Strategy</div><div>Win Rate</div><div>Sharpe</div><div>PnL</div><div>Allocation</div></div>
+      <div id="al-lb-rows">
+        <div class="lb-row"><div class="lb-rank">1</div><div class="lb-strategy">Aggressive</div><div>—</div><div>—</div><div>—</div><div><div class="lb-alloc">33.3%</div><div class="alloc-bar"><div class="alloc-fill" style="width:33%"></div></div></div></div>
+        <div class="lb-row"><div class="lb-rank">2</div><div class="lb-strategy">Balanced</div><div>—</div><div>—</div><div>—</div><div><div class="lb-alloc">33.3%</div><div class="alloc-bar"><div class="alloc-fill" style="width:33%"></div></div></div></div>
+        <div class="lb-row"><div class="lb-rank">3</div><div class="lb-strategy">Conservative</div><div>—</div><div>—</div><div>—</div><div><div class="lb-alloc">33.4%</div><div class="alloc-bar"><div class="alloc-fill" style="width:34%"></div></div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:2rem">
+    <div class="section-label" style="margin-bottom:1rem">Trade History</div>
+    <div class="trade-feed" id="al-trade-feed">
+      <div class="empty-feed">No trades yet. Fund the broker wallet to begin.</div>
+    </div>
+  </div>
+</section>
+<div class="divider"></div>
+<footer>
+  <div class="footer-logo">AlphaLoop</div>
+  <ul class="footer-links">
+    <li><a onclick="showPage('home')">Home</a></li>
+    <li><a onclick="showPage('docs')">API Docs</a></li>
+    <li><a href="https://github.com/davieslennox0/xlayer-signal-api" target="_blank">GitHub</a></li>
+  </ul>
+  <div class="footer-meta">Built on X Layer · x402 · OKX Build X Hackathon S2</div>
+</footer>
+</div>
 
 <script>
 const API = "http://108.61.91.153";
+
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  document.querySelectorAll('.nav-links a').forEach(a => a.classList.remove('active'));
+  window.scrollTo(0,0);
+}
+
+function scrollTo(id) {
+  setTimeout(() => {
+    const el = document.querySelector(id);
+    if (el) el.scrollIntoView({behavior:'smooth'});
+  }, 100);
+}
 
 async function fetchPreview(asset, priceId, confId) {
   try {
@@ -397,7 +634,7 @@ async function fetchPreview(asset, priceId, confId) {
       const conf = d.confidence || 0;
       const el = document.getElementById(confId);
       el.textContent = `Confidence: ${conf.toFixed(1)}%`;
-      el.className = `ticker-change ${conf > 55 ? 'up' : conf < 45 ? 'down' : ''}`;
+      el.className = `ticker-change ${conf>55?'up':conf<45?'down':''}`;
     }
   } catch(e) {}
 }
@@ -407,40 +644,56 @@ async function fetchStatus() {
     const r = await fetch(`${API}/status`);
     const d = await r.json();
     const perf = d.performance || {};
+
+    // Home stats
     document.getElementById('stat-trades').textContent = perf.trades || 0;
     document.getElementById('stat-winrate').textContent = perf.win_rate ? `${perf.win_rate}%` : '—';
     const pnl = perf.total_pnl_usdt || 0;
     const pnlEl = document.getElementById('stat-pnl');
     pnlEl.textContent = `$${pnl.toFixed(4)}`;
-    pnlEl.className = `stat-value ${pnl >= 0 ? 'green' : 'down'}`;
+    pnlEl.className = `stat-value ${pnl>=0?'green':'down'}`;
     document.getElementById('stat-portfolio').textContent = `$${(d.portfolio_value_usdt||0).toFixed(4)}`;
     const earn = d.agent_earnings || {};
     const total = Object.values(earn).reduce((a,b)=>a+b,0);
     document.getElementById('stat-earnings').textContent = `$${total.toFixed(6)}`;
+
+    // Agent earnings — home
     document.getElementById('scout-earn').textContent = `$${(earn.scout||0).toFixed(6)}`;
     document.getElementById('risk-earn').textContent = `$${(earn.risk||0).toFixed(6)}`;
     document.getElementById('learning-earn').textContent = `$${(earn.learning||0).toFixed(6)}`;
     document.getElementById('execution-earn').textContent = `$${(earn.execution||0).toFixed(6)}`;
-    const board = d.leaderboard || [];
+
+    // Agent earnings — agents page
+    document.getElementById('al-scout-earn').textContent = `$${(earn.scout||0).toFixed(6)}`;
+    document.getElementById('al-risk-earn').textContent = `$${(earn.risk||0).toFixed(6)}`;
+    document.getElementById('al-learning-earn').textContent = `$${(earn.learning||0).toFixed(6)}`;
+    document.getElementById('al-execution-earn').textContent = `$${(earn.execution||0).toFixed(6)}`;
+
+    // Leaderboard
+const board = d.leaderboard || [];
     if (board.length) {
       document.getElementById('stat-sharpe').textContent = board[0].sharpe || '—';
-      document.getElementById('lb-rows').innerHTML = board.map((s,i) => `
+      const lbHtml = board.map((s,i) => `
         <div class="lb-row">
           <div class="lb-rank">${i+1}</div>
           <div class="lb-strategy">${s.strategy}</div>
-          <div>${s.win_rate ? s.win_rate+'%' : '—'}</div>
-          <div>${s.sharpe || '—'}</div>
+          <div>${s.win_rate?s.win_rate+'%':'—'}</div>
+          <div>${s.sharpe||'—'}</div>
           <div class="${(s.total_pnl||0)>=0?'up':'down'}">${s.total_pnl?'$'+s.total_pnl:'—'}</div>
           <div><div class="lb-alloc">${s.allocation}%</div><div class="alloc-bar"><div class="alloc-fill" style="width:${s.allocation}%"></div></div></div>
         </div>`).join('');
+      document.getElementById('lb-rows').innerHTML = lbHtml;
+      document.getElementById('al-lb-rows').innerHTML = lbHtml;
     }
   } catch(e) {}
 }
 
+// Init
 fetchPreview('BTC','btc-price','btc-conf');
 fetchPreview('ETH','eth-price','eth-conf');
 fetchPreview('SOL','sol-price','sol-conf');
 fetchStatus();
+
 setInterval(()=>{
   fetchPreview('BTC','btc-price','btc-conf');
   fetchPreview('ETH','eth-price','eth-conf');
