@@ -54,7 +54,25 @@ AGENT_WALLETS = {
 }
 
 AGENT_EARNINGS = {a: 0.0 for a in AGENT_WALLETS}
-ACTIVITY_LOG = []
+import json as _json
+from pathlib import Path as _Path
+
+_ACTIVITY_FILE = "activity_log.json"
+
+def _load_activity():
+    if _Path(_ACTIVITY_FILE).exists():
+        try:
+            with open(_ACTIVITY_FILE) as f:
+                return _json.load(f)
+        except:
+            pass
+    return []
+
+def _save_activity(log):
+    with open(_ACTIVITY_FILE, "w") as f:
+        _json.dump(log[-100:], f)
+
+ACTIVITY_LOG = _load_activity()
 
 ERC20_ABI = [
     {"inputs":[{"name":"account","type":"address"}],
@@ -245,6 +263,7 @@ def execute(req: ExecuteRequest):
 
     if not risk["approved"]:
         ACTIVITY_LOG.append({"agent_id": req.agent_id, "asset": asset, "status": "rejected", "timestamp": int(__import__("time").time())})
+        _save_activity(ACTIVITY_LOG)
         return {"status": "rejected", "reason": risk["reason"]}
 
     size = min(req.amount_usdt, risk["position_size_usdt"])
@@ -252,6 +271,8 @@ def execute(req: ExecuteRequest):
     try:
         result = execute_swap(asset, req.direction, size)
         record_agent_earnings("execute", FEE_TIERS["execute"]["price_usdt"])
+        ACTIVITY_LOG.append({"agent_id": req.agent_id, "asset": asset, "status": result["status"], "tx_hash": result.get("tx_hash",""), "timestamp": int(__import__("time").time())})
+        _save_activity(ACTIVITY_LOG)
         return {
             "status": result["status"],
             "tx_hash": result["tx_hash"],
@@ -290,6 +311,7 @@ def full_broker(req: FullBrokerRequest):
 
     if not should_trade(modified_signal):
         ACTIVITY_LOG.append({"agent_id": req.agent_id, "asset": asset, "status": "waiting", "timestamp": int(__import__("time").time())})
+        _save_activity(ACTIVITY_LOG)
         return {"status": "waiting", "reason": "Conditions not met", "asset": asset}
 
     pv = get_portfolio_value()
@@ -297,6 +319,7 @@ def full_broker(req: FullBrokerRequest):
 
     if not risk["approved"]:
         ACTIVITY_LOG.append({"agent_id": req.agent_id, "asset": asset, "status": "rejected", "timestamp": int(__import__("time").time())})
+        _save_activity(ACTIVITY_LOG)
         return {"status": "rejected", "reason": risk["reason"]}
 
     size = round(risk["position_size_usdt"] * size_mult, 4)
@@ -305,6 +328,7 @@ def full_broker(req: FullBrokerRequest):
         result = execute_swap(asset, sig.get("direction", "UP"), size)
         record_agent_earnings("full", FEE_TIERS["full"]["price_usdt"])
         ACTIVITY_LOG.append({"agent_id": req.agent_id, "asset": asset, "status": result["status"], "tx_hash": result.get("tx_hash",""), "timestamp": int(__import__("time").time())})
+        _save_activity(ACTIVITY_LOG)
         return {
             "status": result["status"],
             "tx_hash": result["tx_hash"],
@@ -344,4 +368,4 @@ if __name__ == "__main__":
 
 @app.get("/activity")
 def activity():
-    return {"activity": ACTIVITY_LOG[-20:]}  # last 20 events
+    return {"activity": ACTIVITY_LOG[-20:]}
