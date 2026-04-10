@@ -76,7 +76,7 @@ def should_trade(signal: dict) -> bool:
         return blended > 0.55
 
     except NotFittedError:
-        return signal.get("confidence", 0) > 55
+        return signal.get("confidence", 0) > 50
 
 def record_outcome(signal: dict, entry_price: float, exit_price: float,
                    direction: str, size_usdt: float):

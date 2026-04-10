@@ -62,7 +62,7 @@ def assess_risk(signal: dict, portfolio_value: float, trade_history: list) -> di
     position_size = min(raw_size, MAX_POSITION)
 
     if position_size < 0.1:
-        position_size = 0.5  # minimum viable demo size
+        position_size = 1.0  # minimum viable demo size
 
     bb_width = signal.get("bb_upper", 0) - signal.get("bb_lower", 0)
     price = signal.get("price", 1)

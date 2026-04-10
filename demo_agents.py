@@ -39,21 +39,21 @@ AGENTS = [
         "address": Web3.to_checksum_address(os.getenv("AGENT_ALICE_ADDRESS")),
         "key":     os.getenv("AGENT_ALICE_KEY"),
         "asset":   "BTC",
-        "interval": 300,  # scans every 5 min
+        "interval": 8640,  # scans every 5 min
     },
     {
         "name":    "Bob",
         "address": Web3.to_checksum_address(os.getenv("AGENT_BOB_ADDRESS")),
         "key":     os.getenv("AGENT_BOB_KEY"),
         "asset":   "ETH",
-        "interval": 420,  # scans every 7 min
+        "interval": 8640,  # scans every 7 min
     },
     {
         "name":    "Charlie",
         "address": Web3.to_checksum_address(os.getenv("AGENT_CHARLIE_ADDRESS")),
         "key":     os.getenv("AGENT_CHARLIE_KEY"),
         "asset":   "SOL",
-        "interval": 360,  # scans every 6 min
+        "interval": 8640,  # scans every 6 min
     },
 ]
 
@@ -90,7 +90,10 @@ def pay_broker(agent: dict, amount_usdt: float) -> str | None:
         return tx_hash.hex()
     return None
 
+AGENT_CYCLES = {"Alice": 0, "Bob": 0, "Charlie": 0}
+
 def agent_cycle(agent: dict):
+    AGENT_CYCLES[agent["name"]] += 1
     log = logging.getLogger(agent["name"])
     asset = agent["asset"]
 
@@ -98,7 +101,7 @@ def agent_cycle(agent: dict):
     bal = get_usdt0_balance(agent["address"])
     log.info(f"Balance: ${bal:.4f} USDT0 | Scanning {asset}...")
 
-    if bal < 0.02:
+    if bal < 0.05:
         log.info(f"Insufficient balance for full broker call — skipping")
         return
 
@@ -111,23 +114,26 @@ def agent_cycle(agent: dict):
 
     log.info(f"Payment tx: {tx_hash}")
 
+    # Alternate direction every cycle for circular trading
+    cycle = AGENT_CYCLES[agent["name"]]
+    forced_direction = "UP" if cycle % 2 == 0 else "DOWN"
+
     # Call AlphaLoop broker
     try:
-        res = requests.post(f"{BROKER_URL}/broker", json={
-            "asset":    asset,
-            "agent_id": agent["name"].lower(),
-            "tx_hash":  tx_hash
+        res = requests.post(f"{BROKER_URL}/execute", json={
+            "asset":       asset,
+            "direction":   forced_direction,
+            "amount_usdt": 0.50,
+            "agent_id":    agent["name"].lower(),
+            "tx_hash":     tx_hash
         }, timeout=60)
         result = res.json()
         status = result.get("status", "unknown")
-        log.info(f"Broker response: {status}")
-
+        log.info(f"Response: {status} | direction: {forced_direction}")
         if status == "success":
             log.info(f"Trade executed: {result.get('explorer')}")
-        elif status == "waiting":
-            log.info(f"Agent waiting: {result.get('reason')}")
         else:
-            log.info(f"Rejected: {result.get('reason')}")
+            log.info(f"Not executed: {result.get('reason', result.get('detail', ''))}")
 
     except Exception as e:
         log.error(f"Broker call failed: {e}")
