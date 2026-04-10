@@ -6,7 +6,13 @@ from web3 import Web3
 
 load_dotenv()
 
-w3 = Web3(Web3.HTTPProvider(os.getenv("RPC_URL")))
+for rpc in [os.getenv("RPC_URL"), "https://rpc.xlayer.tech", "https://xlayerrpc.okx.com"]:
+    try:
+        w3 = Web3(Web3.HTTPProvider(rpc, request_kwargs={"timeout": 30}))
+        if w3.is_connected():
+            break
+    except Exception:
+        continue
 WALLET = Web3.to_checksum_address(os.getenv("WALLET_ADDRESS"))
 PRIVATE_KEY = os.getenv("PRIVATE_KEY")
 CHAIN_ID = int(os.getenv("CHAIN_ID", 196))
@@ -74,7 +80,7 @@ def approve_token(token_address: str, amount_wei: int) -> str | None:
     if allowance >= amount_wei:
         return None  # already approved
 
-    nonce = w3.eth.get_transaction_count(WALLET)
+    nonce = w3.eth.get_transaction_count(WALLET, "pending")
     tx = token.functions.approve(SWAP_ROUTER, amount_wei).build_transaction({
         "from": WALLET,
         "nonce": nonce,
@@ -115,7 +121,7 @@ def execute_swap(asset: str, direction: str, amount_usdt: float) -> dict:
         "sqrtPriceLimitX96": 0,
     }
 
-    nonce = w3.eth.get_transaction_count(WALLET)
+    nonce = w3.eth.get_transaction_count(WALLET, "pending")
     tx = router.functions.exactInputSingle(params).build_transaction({
         "from":     WALLET,
         "nonce":    nonce,

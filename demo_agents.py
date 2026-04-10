@@ -17,7 +17,13 @@ logging.basicConfig(
     ]
 )
 
-w3 = Web3(Web3.HTTPProvider(os.getenv("RPC_URL")))
+for rpc in [os.getenv("RPC_URL"), "https://rpc.xlayer.tech", "https://xlayerrpc.okx.com"]:
+    try:
+        w3 = Web3(Web3.HTTPProvider(rpc, request_kwargs={"timeout": 30}))
+        if w3.is_connected():
+            break
+    except Exception:
+        continue
 CHAIN_ID = int(os.getenv("CHAIN_ID", 196))
 BROKER_URL = "http://localhost:8000"
 
@@ -39,21 +45,21 @@ AGENTS = [
         "address": Web3.to_checksum_address(os.getenv("AGENT_ALICE_ADDRESS")),
         "key":     os.getenv("AGENT_ALICE_KEY"),
         "asset":   "BTC",
-        "interval": 8640,  # scans every 5 min
+        "interval": 300,  # scans every 5 min
     },
     {
         "name":    "Bob",
         "address": Web3.to_checksum_address(os.getenv("AGENT_BOB_ADDRESS")),
         "key":     os.getenv("AGENT_BOB_KEY"),
         "asset":   "ETH",
-        "interval": 8640,  # scans every 7 min
+        "interval": 300,  # scans every 7 min
     },
     {
         "name":    "Charlie",
         "address": Web3.to_checksum_address(os.getenv("AGENT_CHARLIE_ADDRESS")),
         "key":     os.getenv("AGENT_CHARLIE_KEY"),
         "asset":   "SOL",
-        "interval": 8640,  # scans every 6 min
+        "interval": 300,  # scans every 6 min
     },
 ]
 
