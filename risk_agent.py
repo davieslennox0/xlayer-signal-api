@@ -8,7 +8,7 @@ load_dotenv()
 RPC_URL = os.getenv("RPC_URL", "https://rpc.xlayer.tech")
 w3 = Web3(Web3.HTTPProvider(RPC_URL))
 
-USDT0_ADDRESS = Web3.to_checksum_address("0x1E4a5963aBFD975d8c9021ce480b42188849D41d")
+USDT0_ADDRESS = Web3.to_checksum_address("0x779Ded0c9e1022225f8E0630b35a9b54bE713736")
 WALLET = Web3.to_checksum_address(os.getenv("WALLET_ADDRESS"))
 MAX_POSITION = float(os.getenv("MAX_POSITION_USDT", 2))
 STOP_LOSS_PCT = float(os.getenv("STOP_LOSS_PCT", 20))

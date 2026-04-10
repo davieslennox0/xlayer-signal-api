@@ -12,7 +12,7 @@ PRIVATE_KEY = os.getenv("PRIVATE_KEY")
 CHAIN_ID = int(os.getenv("CHAIN_ID", 196))
 
 # X Layer token addresses
-USDT0  = Web3.to_checksum_address("0x1E4a5963aBFD975d8c9021ce480b42188849D41d")
+USDT0  = Web3.to_checksum_address("0x779Ded0c9e1022225f8E0630b35a9b54bE713736")
 WOKB   = Web3.to_checksum_address("0xe538905cf8410324e03A5A23C1c177a474D59b2b")
 WETH   = Web3.to_checksum_address("0x5A77f1443D16ee5761d310e38b62f77f726bC71c")
 
