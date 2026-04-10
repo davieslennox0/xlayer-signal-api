@@ -54,6 +54,7 @@ AGENT_WALLETS = {
 }
 
 AGENT_EARNINGS = {a: 0.0 for a in AGENT_WALLETS}
+ACTIVITY_LOG = []
 
 ERC20_ABI = [
     {"inputs":[{"name":"account","type":"address"}],
@@ -243,6 +244,7 @@ def execute(req: ExecuteRequest):
     risk = assess_risk(signal, max(pv, 10), [])
 
     if not risk["approved"]:
+        ACTIVITY_LOG.append({"agent_id": req.agent_id, "asset": asset, "status": "rejected", "timestamp": int(__import__("time").time())})
         return {"status": "rejected", "reason": risk["reason"]}
 
     size = min(req.amount_usdt, risk["position_size_usdt"])
@@ -287,12 +289,14 @@ def full_broker(req: FullBrokerRequest):
     strategy, modified_signal, size_mult = select_strategy(sig)
 
     if not should_trade(modified_signal):
+        ACTIVITY_LOG.append({"agent_id": req.agent_id, "asset": asset, "status": "waiting", "timestamp": int(__import__("time").time())})
         return {"status": "waiting", "reason": "Conditions not met", "asset": asset}
 
     pv = get_portfolio_value()
     risk = assess_risk(modified_signal, max(pv, 10), [])
 
     if not risk["approved"]:
+        ACTIVITY_LOG.append({"agent_id": req.agent_id, "asset": asset, "status": "rejected", "timestamp": int(__import__("time").time())})
         return {"status": "rejected", "reason": risk["reason"]}
 
     size = round(risk["position_size_usdt"] * size_mult, 4)
@@ -300,6 +304,7 @@ def full_broker(req: FullBrokerRequest):
     try:
         result = execute_swap(asset, sig.get("direction", "UP"), size)
         record_agent_earnings("full", FEE_TIERS["full"]["price_usdt"])
+        ACTIVITY_LOG.append({"agent_id": req.agent_id, "asset": asset, "status": result["status"], "tx_hash": result.get("tx_hash",""), "timestamp": int(__import__("time").time())})
         return {
             "status": result["status"],
             "tx_hash": result["tx_hash"],
@@ -335,8 +340,7 @@ if __name__ == "__main__":
     import uvicorn
     uvicorn.run("prime_broker:app", host="0.0.0.0", port=8000, reload=False)
 
-# Activity log — stores recent agent calls
-ACTIVITY_LOG = []
+
 
 @app.get("/activity")
 def activity():
