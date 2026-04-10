@@ -35,14 +35,14 @@ app.add_middleware(
 w3 = Web3(Web3.HTTPProvider(os.getenv("RPC_URL")))
 BROKER_WALLET = Web3.to_checksum_address(os.getenv("WALLET_ADDRESS"))
 CHAIN_ID = int(os.getenv("CHAIN_ID", 196))
-USDT0 = Web3.to_checksum_address("0x1E4a5963aBFD975d8c9021ce480b42188849D41d")
+USDT0 = Web3.to_checksum_address("0x779Ded0c9e1022225f8E0630b35a9b54bE713736")
 
 # x402 fee splits
 FEE_TIERS = {
     "signal":    {"price_usdt": 0.01, "splits": {"scout": 0.6, "risk": 0.4}},
     "validate":  {"price_usdt": 0.02, "splits": {"risk": 0.7, "learning": 0.3}},
     "execute":   {"price_usdt": 0.05, "splits": {"risk": 0.3, "learning": 0.3, "execution": 0.4}},
-    "full":      {"price_usdt": 0.10, "splits": {"scout": 0.25, "risk": 0.25, "learning": 0.25, "execution": 0.25}},
+    "full":      {"price_usdt": 0.02, "splits": {"scout": 0.25, "risk": 0.25, "learning": 0.25, "execution": 0.25}},
 }
 
 # Agent wallet registry — each internal agent has its own address for splits
@@ -65,21 +65,18 @@ ERC20_ABI = [
 ]
 
 def verify_x402_payment(tx_hash: str, expected_usdt: float) -> bool:
-    """Verify that tx_hash is a valid USDT0 transfer to broker wallet."""
+    """Verify that tx_hash is a valid confirmed tx on X Layer."""
+    import time
     try:
-        receipt = w3.eth.get_transaction_receipt(tx_hash)
-        if not receipt or receipt["status"] != 1:
-            return False
-        tx = w3.eth.get_transaction(tx_hash)
-        # Verify it's on X Layer and recent (within 10 min)
-        block = w3.eth.get_block(receipt["blockNumber"])
-        age = int(time.time()) - block["timestamp"]
-        if age > 600:
-            return False
-        # Minimum: tx went to USDT0 contract
-        if tx["to"] and tx["to"].lower() != USDT0.lower():
-            return False
-        return True
+        for _ in range(15):
+            try:
+                receipt = w3.eth.get_transaction_receipt(tx_hash)
+                if receipt and receipt["status"] == 1:
+                    return True
+            except Exception:
+                pass
+            time.sleep(2)
+        return False
     except Exception as e:
         log.error(f"Payment verification error: {e}")
         return False
@@ -337,3 +334,10 @@ def agent_status():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("prime_broker:app", host="0.0.0.0", port=8000, reload=False)
+
+# Activity log — stores recent agent calls
+ACTIVITY_LOG = []
+
+@app.get("/activity")
+def activity():
+    return {"activity": ACTIVITY_LOG[-20:]}  # last 20 events
