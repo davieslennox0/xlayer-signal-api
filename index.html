@@ -343,7 +343,7 @@ footer { position:relative; z-index:1; border-top:1px solid var(--border); paddi
 tx_hash = send_usdt0(<span class="str">"0xdec754869Aa921661676e5FfB8589556cBDF3Ec7"</span>, <span class="str">0.10</span>)
 
 <span class="cm"># Step 2: delegate full execution to AlphaLoop</span>
-res = requests.post(<span class="str">"http://108.61.91.153/broker"</span>, json={
+res = requests.post(<span class="str">"https://alphaloop.duckdns.org/broker"</span>, json={
     <span class="str">"asset"</span>:    <span class="str">"ETH"</span>,
     <span class="str">"agent_id"</span>: <span class="str">"your-agent-id"</span>,
     <span class="str">"tx_hash"</span>:  tx_hash
@@ -372,7 +372,7 @@ print(res.json())
 <section style="padding-top:6rem">
   <div class="section-label">API Reference</div>
   <h2 class="section-title">AlphaLoop API Docs</h2>
-  <p class="section-sub">Base URL: <span style="font-family:var(--mono);color:var(--amber)">http://108.61.91.153</span> &nbsp;·&nbsp; All payments in USDT0 on X Layer (Chain ID 196)</p>
+  <p class="section-sub">Base URL: <span style="font-family:var(--mono);color:var(--amber)">https://alphaloop.duckdns.org</span> &nbsp;·&nbsp; All payments in USDT0 on X Layer (Chain ID 196)</p>
 
   <div class="notice">⬡ &nbsp;Broker wallet: 0xdec754869Aa921661676e5FfB8589556cBDF3Ec7 &nbsp;·&nbsp; Send payment → get tx_hash → include in request body</div>
 
