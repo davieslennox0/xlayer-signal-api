@@ -996,5 +996,126 @@
       "asset": "SOL"
     },
     "opened_at": 1775942370
+  },
+  "ee8e7e0449f42895d4f6da673a999b16b064716173edcb45de47672a12c30a26": {
+    "asset": "BTC",
+    "direction": "UP",
+    "entry_price": 73415.68,
+    "size_usdt": 0.5,
+    "stop_loss_pct": 1.5,
+    "take_profit_pct": 3.0,
+    "strategy": "balanced",
+    "signal": {
+      "price": 73415.68,
+      "rsi": 43.07,
+      "macd": 28.7962,
+      "vwap": 73425.15,
+      "bb_low": 73360.48,
+      "bb_high": 73485.86,
+      "bb_regime": "contracting",
+      "bw": 0.1708,
+      "momentum": 0.0116,
+      "ob_ratio": null,
+      "funding": 0.0,
+      "bias": 2.5,
+      "confidence": 61.4,
+      "direction": null,
+      "label": "\u26aa HOLD",
+      "aggression": "\u2014",
+      "triggers": [
+        "Trending + MACD bullish crossover \u2192 UP \ud83d\udfe2"
+      ],
+      "reasons": [
+        "RSI 43.07 \u2192 Neutral zone \u26aa",
+        "Market Mode: Trending (contracting) \u2192 Prioritize MACD/VWAP",
+        "Strong bullish candle \ud83d\udfe2",
+        "Momentum 0.0116% \u2192 Flat \u26aa",
+        "Funding 0.0% \u2192 Neutral \u26aa"
+      ],
+      "tradeable": false,
+      "asset": "BTC"
+    },
+    "opened_at": 1775942661
+  },
+  "71aabafc0aaf362f9f0e1b3ac080ac945e5f1c22eb9ab65f33e2def333c20cd3": {
+    "asset": "ETH",
+    "direction": "UP",
+    "entry_price": 2300.01,
+    "size_usdt": 0.5,
+    "stop_loss_pct": 1.5,
+    "take_profit_pct": 3.0,
+    "strategy": "balanced",
+    "signal": {
+      "price": 2300.01,
+      "rsi": 33.73,
+      "macd": 0.8155,
+      "vwap": 2302.11,
+      "bb_low": 2298.86,
+      "bb_high": 2304.9,
+      "bb_regime": "contracting",
+      "bw": 0.2622,
+      "momentum": -0.0326,
+      "ob_ratio": null,
+      "funding": 0.0,
+      "bias": 1.5,
+      "confidence": 56.8,
+      "direction": null,
+      "label": "\u26aa HOLD",
+      "aggression": "\u2014",
+      "triggers": [
+        "RSI Bias: 33.73 (Zone < 35) \u2192 [+2 Bias] \ud83d\udfe2",
+        "Trending + MACD bullish crossover \u2192 UP \ud83d\udfe2",
+        "Trending + Below VWAP ($2,302.11) \u2192 DOWN \ud83d\udd34"
+      ],
+      "reasons": [
+        "Market Mode: Trending (contracting) \u2192 Prioritize MACD/VWAP",
+        "Strong bearish candle \ud83d\udd34",
+        "Momentum -0.0326% \u2192 Flat \u26aa",
+        "Funding 0.0% \u2192 Neutral \u26aa"
+      ],
+      "tradeable": false,
+      "asset": "ETH"
+    },
+    "opened_at": 1775942669
+  },
+  "ec168f84ff5d96e789c58fcc98e169b959d5d58603a20aa2c87613463efeabc7": {
+    "asset": "SOL",
+    "direction": "UP",
+    "entry_price": 85.38,
+    "size_usdt": 0.5,
+    "stop_loss_pct": 1.5,
+    "take_profit_pct": 3.0,
+    "strategy": "balanced",
+    "signal": {
+      "price": 85.38,
+      "rsi": 33.33,
+      "macd": -0.0062,
+      "vwap": 85.46,
+      "bb_low": 85.37,
+      "bb_high": 85.54,
+      "bb_regime": "contracting",
+      "bw": 0.1916,
+      "momentum": -0.0585,
+      "ob_ratio": null,
+      "funding": 0.0,
+      "bias": -0.5,
+      "confidence": 47.7,
+      "direction": null,
+      "label": "\u26aa HOLD",
+      "aggression": "\u2014",
+      "triggers": [
+        "RSI Bias: 33.33 (Zone < 35) \u2192 [+2 Bias] \ud83d\udfe2",
+        "Trending + Below VWAP ($85.46) \u2192 DOWN \ud83d\udd34"
+      ],
+      "reasons": [
+        "Market Mode: Trending (contracting) \u2192 Prioritize MACD/VWAP",
+        "Strong bearish candle \ud83d\udd34",
+        "Momentum -0.0585% \u2192 Bearish \ud83d\udd34",
+        "Funding 0.0% \u2192 Neutral \u26aa"
+      ],
+      "tradeable": false,
+      "asset": "SOL"
+    },
+    "opened_at": 1775942681
   }
 }
