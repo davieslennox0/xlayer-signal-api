@@ -1,0 +1,122 @@
+{
+  "8da0fc83c1feccff97687bb39eef6de89680f7dc3bc14b270d2fe52f166f1150": {
+    "asset": "BTC",
+    "direction": "DOWN",
+    "entry_price": 73445.35,
+    "size_usdt": 0.5,
+    "stop_loss_pct": 1.5,
+    "take_profit_pct": 3.0,
+    "strategy": "balanced",
+    "signal": {
+      "price": 73445.35,
+      "rsi": 24.48,
+      "macd": -53.6608,
+      "vwap": 73499.09,
+      "bb_low": 73411.01,
+      "bb_high": 73566.91,
+      "bb_regime": "contracting",
+      "bw": 0.2121,
+      "momentum": -0.0533,
+      "ob_ratio": null,
+      "funding": 0.0,
+      "bias": -0.5,
+      "confidence": 47.7,
+      "direction": null,
+      "label": "\u26aa HOLD",
+      "aggression": "\u2014",
+      "triggers": [
+        "RSI Bias: 24.48 (Zone < 35) \u2192 [+2 Bias] \ud83d\udfe2",
+        "Trending + Below VWAP ($73,499.09) \u2192 DOWN \ud83d\udd34"
+      ],
+      "reasons": [
+        "Market Mode: Trending (contracting) \u2192 Prioritize MACD/VWAP",
+        "Strong bearish candle \ud83d\udd34",
+        "Momentum -0.0533% \u2192 Bearish \ud83d\udd34",
+        "Funding 0.0% \u2192 Neutral \u26aa"
+      ],
+      "tradeable": false,
+      "asset": "BTC"
+    },
+    "opened_at": 1775939432
+  },
+  "7dcb4cdfe20ded8ffb22391ddcaa905c98f3d8425cc807e036be39bda42e9347": {
+    "asset": "ETH",
+    "direction": "DOWN",
+    "entry_price": 2302.61,
+    "size_usdt": 0.5,
+    "stop_loss_pct": 1.5,
+    "take_profit_pct": 3.0,
+    "strategy": "balanced",
+    "signal": {
+      "price": 2302.61,
+      "rsi": 21.85,
+      "macd": -2.4842,
+      "vwap": 2306.36,
+      "bb_low": 2301.6,
+      "bb_high": 2310.15,
+      "bb_regime": "contracting",
+      "bw": 0.3706,
+      "momentum": -0.102,
+      "ob_ratio": null,
+      "funding": 0.0,
+      "bias": -0.5,
+      "confidence": 47.7,
+      "direction": null,
+      "label": "\u26aa HOLD",
+      "aggression": "\u2014",
+      "triggers": [
+        "RSI Bias: 21.85 (Zone < 35) \u2192 [+2 Bias] \ud83d\udfe2",
+        "Trending + Below VWAP ($2,306.36) \u2192 DOWN \ud83d\udd34"
+      ],
+      "reasons": [
+        "Market Mode: Trending (contracting) \u2192 Prioritize MACD/VWAP",
+        "Strong bearish candle \ud83d\udd34",
+        "Momentum -0.102% \u2192 Bearish \ud83d\udd34",
+        "Funding 0.0% \u2192 Neutral \u26aa"
+      ],
+      "tradeable": false,
+      "asset": "ETH"
+    },
+    "opened_at": 1775939436
+  },
+  "cab61941cc7c28452d468949709a0be22e3ed212ab6e3eb368c00b0b6dab04a6": {
+    "asset": "SOL",
+    "direction": "DOWN",
+    "entry_price": 85.45,
+    "size_usdt": 0.5,
+    "stop_loss_pct": 1.5,
+    "take_profit_pct": 3.0,
+    "strategy": "balanced",
+    "signal": {
+      "price": 85.45,
+      "rsi": 16.28,
+      "macd": -0.1209,
+      "vwap": 85.58,
+      "bb_low": 85.36,
+      "bb_high": 85.78,
+      "bb_regime": "contracting",
+      "bw": 0.4886,
+      "momentum": -0.0468,
+      "ob_ratio": null,
+      "funding": 0.0,
+      "bias": 0.0,
+      "confidence": 50.0,
+      "direction": null,
+      "label": "\u26aa HOLD",
+      "aggression": "\u2014",
+      "triggers": [
+        "RSI Bias: 16.28 (Zone < 35) \u2192 [+2 Bias] \ud83d\udfe2",
+        "Trending + Below VWAP ($85.58) \u2192 DOWN \ud83d\udd34"
+      ],
+      "reasons": [
+        "Market Mode: Trending (contracting) \u2192 Prioritize MACD/VWAP",
+        "Strong bearish candle \ud83d\udd34",
+        "Momentum -0.0468% \u2192 Flat \u26aa",
+        "Funding 0.0% \u2192 Neutral \u26aa"
+      ],
+      "tradeable": false,
+      "asset": "SOL"
+    },
+    "opened_at": 1775939441
+  }
+}

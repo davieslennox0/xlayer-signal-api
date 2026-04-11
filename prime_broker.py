@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from web3 import Web3
 
 from signal_engine import generate_signal, generate_eth_signal, generate_any_signal
+from trade_monitor import register_trade
 from risk_agent import assess_risk, get_portfolio_value
 from learning_agent import should_trade, record_outcome, get_performance_stats
 from competition_layer import select_strategy, record_strategy_trade, get_leaderboard
@@ -273,6 +274,20 @@ def execute(req: ExecuteRequest):
         record_agent_earnings("execute", FEE_TIERS["execute"]["price_usdt"])
         ACTIVITY_LOG.append({"agent_id": req.agent_id, "asset": asset, "status": result["status"], "tx_hash": result.get("tx_hash",""), "timestamp": int(__import__("time").time())})
         _save_activity(ACTIVITY_LOG)
+        if result["status"] == "success":
+            live_sig = generate_any_signal(asset)
+            live_price = live_sig.get("price", 0)
+            register_trade(
+                tx_hash=result["tx_hash"],
+                asset=asset,
+                direction=req.direction,
+                entry_price=live_price,
+                size_usdt=size,
+                stop_loss_pct=1.5,
+                take_profit_pct=3.0,
+                strategy="balanced",
+                signal=live_sig
+            )
         return {
             "status": result["status"],
             "tx_hash": result["tx_hash"],
@@ -360,6 +375,23 @@ def agent_status():
         "chain_id": CHAIN_ID,
     }
 
+def run_monitor():
+    import time
+    from trade_monitor import check_trades
+    while True:
+        try:
+            check_trades()
+        except Exception as e:
+            log.error(f"Monitor error: {e}")
+        time.sleep(180)
+
+@app.on_event("startup")
+async def startup():
+    import threading
+    t = threading.Thread(target=run_monitor, daemon=True)
+    t.start()
+    log.info("Trade monitor started as background thread")
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("prime_broker:app", host="0.0.0.0", port=8000, reload=False)
@@ -369,3 +401,72 @@ if __name__ == "__main__":
 @app.get("/activity")
 def activity():
     return {"activity": ACTIVITY_LOG[-20:]}
+
+# ── MCP Integration ──────────────────────────────────────────────────────────
+
+@app.get("/.well-known/mcp.json")
+def mcp_manifest():
+    return {
+        "schema_version": "v1",
+        "name": "alphaloop",
+        "display_name": "AlphaLoop Prime Broker",
+        "description": "Managed trade execution for AI agents on X Layer. Pay x402, get Uniswap V3 execution.",
+        "url": "https://alphaloop.duckdns.org",
+        "tools": [
+            {"name": "get_preview", "description": "Free price + confidence for any asset.", "parameters": {"type": "object", "properties": {"asset": {"type": "string"}}, "required": ["asset"]}},
+            {"name": "get_signal", "description": "Full signal. Costs $0.01 USDT0.", "parameters": {"type": "object", "properties": {"asset": {"type": "string"}, "tx_hash": {"type": "string"}}, "required": ["asset", "tx_hash"]}},
+            {"name": "validate_signal", "description": "Risk validation. Costs $0.02 USDT0.", "parameters": {"type": "object", "properties": {"asset": {"type": "string"}, "direction": {"type": "string"}, "confidence": {"type": "number"}, "tx_hash": {"type": "string"}}, "required": ["asset", "direction", "confidence", "tx_hash"]}},
+            {"name": "execute_trade", "description": "Uniswap V3 execution. Costs $0.05 USDT0.", "parameters": {"type": "object", "properties": {"asset": {"type": "string"}, "direction": {"type": "string"}, "amount_usdt": {"type": "number"}, "agent_id": {"type": "string"}, "tx_hash": {"type": "string"}}, "required": ["asset", "direction", "amount_usdt", "agent_id", "tx_hash"]}},
+            {"name": "full_broker", "description": "Full pipeline. Costs $0.02 USDT0.", "parameters": {"type": "object", "properties": {"asset": {"type": "string"}, "agent_id": {"type": "string"}, "tx_hash": {"type": "string"}}, "required": ["asset", "agent_id", "tx_hash"]}},
+            {"name": "get_status", "description": "Live broker status.", "parameters": {"type": "object", "properties": {}}},
+            {"name": "get_activity", "description": "Live activity feed.", "parameters": {"type": "object", "properties": {}}},
+            {"name": "get_payment_info", "description": "Payment instructions.", "parameters": {"type": "object", "properties": {}}}
+        ]
+    }
+
+@app.get("/mcp/tools")
+def mcp_list_tools():
+    return {"tools": mcp_manifest()["tools"]}
+
+class MCPToolCall(BaseModel):
+    name: str
+    parameters: dict = {}
+
+@app.post("/mcp/tools/call")
+async def mcp_call_tool(call: MCPToolCall):
+    import httpx
+    async with httpx.AsyncClient(timeout=60) as client:
+        try:
+            if call.name == "get_preview":
+                r = await client.get(f"http://127.0.0.1:8000/preview/{call.parameters['asset']}")
+                return {"result": r.json()}
+            elif call.name == "get_signal":
+                r = await client.post(f"http://127.0.0.1:8000/signal", json=call.parameters)
+                return {"result": r.json()}
+            elif call.name == "validate_signal":
+                r = await client.post(f"http://127.0.0.1:8000/validate", json=call.parameters)
+                return {"result": r.json()}
+            elif call.name == "execute_trade":
+                r = await client.post(f"http://127.0.0.1:8000/execute", json=call.parameters)
+                return {"result": r.json()}
+            elif call.name == "full_broker":
+                r = await client.post(f"http://127.0.0.1:8000/broker", json=call.parameters)
+                return {"result": r.json()}
+            elif call.name == "get_status":
+                r = await client.get(f"http://127.0.0.1:8000/status")
+                return {"result": r.json()}
+            elif call.name == "get_activity":
+                r = await client.get(f"http://127.0.0.1:8000/activity")
+                return {"result": r.json()}
+            elif call.name == "get_payment_info":
+                return {"result": {
+                    "broker_wallet": BROKER_WALLET,
+                    "chain_id": CHAIN_ID,
+                    "token": "USDT0",
+                    "token_address": USDT0,
+                    "tiers": {"signal": "$0.01", "validate": "$0.02", "execute": "$0.05", "broker": "$0.02"}
+                }}
+            else:
+                return {"error": f"Unknown tool: {call.name}"}
+        except Exception as e:
+            return {"error": str(e)}
