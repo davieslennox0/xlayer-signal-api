@@ -10,6 +10,7 @@ from web3 import Web3
 
 from signal_engine import generate_signal, generate_eth_signal, generate_any_signal
 from trade_monitor import register_trade
+from moltbook_agent import post_trade
 from risk_agent import assess_risk, get_portfolio_value
 from learning_agent import should_trade, record_outcome, get_performance_stats
 from competition_layer import select_strategy, record_strategy_trade, get_leaderboard
@@ -288,6 +289,10 @@ def execute(req: ExecuteRequest):
                 strategy="balanced",
                 signal=live_sig
             )
+            try:
+                post_trade(asset, req.direction, size, result["tx_hash"], result["status"])
+            except Exception as e:
+                log.error(f"Moltbook post error: {e}")
         return {
             "status": result["status"],
             "tx_hash": result["tx_hash"],
@@ -391,6 +396,9 @@ async def startup():
     t = threading.Thread(target=run_monitor, daemon=True)
     t.start()
     log.info("Trade monitor started as background thread")
+    t2 = threading.Thread(target=run_moltbook_heartbeat, daemon=True)
+    t2.start()
+    log.info("Moltbook heartbeat started")
 
 if __name__ == "__main__":
     import uvicorn
@@ -470,3 +478,21 @@ async def mcp_call_tool(call: MCPToolCall):
                 return {"error": f"Unknown tool: {call.name}"}
         except Exception as e:
             return {"error": str(e)}
+
+def run_moltbook_heartbeat():
+    """Post status to Moltbook every hour."""
+    import time
+    from moltbook_agent import post_status
+    time.sleep(300)  # wait 5 min before first post
+    cycle = 0
+    while True:
+        try:
+            if cycle % 12 == 0:  # every hour (12 x 5min)
+                pv = get_portfolio_value()
+                stats = get_performance_stats()
+                post_status(pv, AGENT_EARNINGS, stats.get("trades", 0))
+                log.info("Moltbook status posted")
+        except Exception as e:
+            log.error(f"Moltbook heartbeat error: {e}")
+        time.sleep(300)
+        cycle += 1
